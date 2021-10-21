@@ -59,12 +59,13 @@ tap-rest-api-msdk --about
 ```
 
 Config Options:
-- `api_url`: the base url/endpoint for the desired api
+- `api_url`: required: the base url/endpoint for the desired api.
 - `name`: required: name of the stream.
 - `path`: optional: the path appeneded to the `api_url`.
 - `params`: optional: an object of objects that provide the `params` in a `requests.get` method.
 - `headers`: optional: an object of headers to pass into the api calls.
 - `records_path`: optional: a jsonpath string representing the path in the requests response that contains the records to process. Defaults to `$[*]`.
+- `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `$.next_page`.
 - `primary_keys`: required: a list of the json keys of the primary key for the stream.
 - `replication_key`: optional: the json key of the replication key. Note that this should be an incrementing integer or datetime object.
 - `except_keys`: This tap automatically flattens the entire json structure and builds keys based on the corresponding paths.
