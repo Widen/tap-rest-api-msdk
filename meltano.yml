@@ -11,8 +11,6 @@ plugins:
         - discover
       settings:
         - name: api_url
-        - name: auth_method
-        - name: auth_token
         - name: name
         - name: path
         - name: params

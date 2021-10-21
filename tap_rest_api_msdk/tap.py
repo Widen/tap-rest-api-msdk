@@ -18,8 +18,8 @@ class TapRestApiMsdk(Tap):
 
     config_jsonschema = th.PropertiesList(
         th.Property("api_url", th.StringType, required=True),
-        th.Property("auth_method", th.StringType, default='no_auth', required=False),
-        th.Property("auth_token", th.StringType, required=False),
+        # th.Property("auth_method", th.StringType, default='no_auth', required=False),
+        # th.Property("auth_token", th.StringType, required=False),
         th.Property('name', th.StringType, required=True),
         th.Property('path', th.StringType, default="", required=False),
         th.Property('params', th.ObjectType(), required=False),

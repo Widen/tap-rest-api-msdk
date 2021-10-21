@@ -31,8 +31,6 @@ plugins:
         - discover
       settings:
         - name: api_url
-        - name: auth_method
-        - name: auth_token
         - name: name
         - name: path
         - name: params
@@ -65,6 +63,7 @@ Config Options:
 - `name`: required: name of the stream.
 - `path`: optional: the path appeneded to the `api_url`.
 - `params`: optional: an object of objects that provide the `params` in a `requests.get` method.
+- `headers`: optional: an object of headers to pass into the api calls.
 - `records_path`: optional: a jsonpath string representing the path in the requests response that contains the records to process. Defaults to `$[*]`.
 - `primary_keys`: required: a list of the json keys of the primary key for the stream.
 - `replication_key`: optional: the json key of the replication key. Note that this should be an incrementing integer or datetime object.
@@ -72,7 +71,7 @@ Config Options:
   Keys, whether composite or otherwise, listed in this dictionary will not be recursively flattened, but instead their values will be
   turned into a json string and processed in that format. This is also automatically done for any lists within the records; therefore,
   records are not duplicated for each item in lists.
-- `num_inference_keys`: optional: number of records used to infer the stream's schema. Defaults to 50
+- `num_inference_keys`: optional: number of records used to infer the stream's schema. Defaults to 50.
 
 ## Usage
 
