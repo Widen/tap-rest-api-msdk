@@ -40,6 +40,10 @@ plugins:
         - name: replication_key
         - name: except_keys
         - name: num_inference_records
+        - name: pagination_request_style
+        - name: pagination_response_style
+        - name: pagination_page_size
+        - name: next_page_token_path
 ```
 
 ```bash
@@ -65,6 +69,9 @@ Config Options:
 - `params`: optional: an object of objects that provide the `params` in a `requests.get` method.
 - `headers`: optional: an object of headers to pass into the api calls.
 - `records_path`: optional: a jsonpath string representing the path in the requests response that contains the records to process. Defaults to `$[*]`.
+- `pagination_request_style`: optional: style for requesting pagination, defaults to `default`, see Pagination below.
+- `pagination_result_style`: optional: style of pagination results, defaults to `default`, see Pagination below.
+- `pagination_page_size`: optional: limit for size of page, defaults to None.
 - `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `$.next_page`.
 - `primary_keys`: required: a list of the json keys of the primary key for the stream.
 - `replication_key`: optional: the json key of the replication key. Note that this should be an incrementing integer or datetime object.
@@ -73,6 +80,36 @@ Config Options:
   turned into a json string and processed in that format. This is also automatically done for any lists within the records; therefore,
   records are not duplicated for each item in lists.
 - `num_inference_keys`: optional: number of records used to infer the stream's schema. Defaults to 50.
+
+## Pagination
+
+Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results stype default to the `default`, which is the pagination style originally implemented.
+### Default Request Style
+The default request style for pagination is described below:
+- Use next_page_token_path if provided to extract the token from response if found; otherwise
+- use X-Next-Page header from response
+
+### Default Response Style
+The default response style for pagination is described below:
+- If there is a token, add that as a `page` URL parameter.
+
+### Additional Request Styles
+There are additional request styles supported as follows.
+- `style1` - This style uses URL parameters named offset and limit
+  - `offset` is calculated from the previous response, or not set if there is no previous response
+  - `limit` is set to the `pagination_page_size` value, if specified, or not set
+
+### Additional Response Styles
+There are additional response styles supported as follows.
+- `style1` - This style retrieves pagination information from the `pagination` top-level element in the response.  Expected format is as follows:
+    ```json
+    "pagination": {
+        "total": 136,
+        "limit": 2,
+        "offset": 2
+    }
+    ```
+  The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as total and offset to calculate the next token value.
 
 ## Usage
 
