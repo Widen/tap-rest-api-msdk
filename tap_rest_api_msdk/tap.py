@@ -17,37 +17,76 @@ class TapRestApiMsdk(Tap):
     name = "tap-rest-api-msdk"
 
     config_jsonschema = th.PropertiesList(
-        th.Property("api_url", th.StringType, required=True,
-                    description="the base url/endpoint for the desired api"),
+        th.Property("api_url", th.StringType, required=True, description="the base url/endpoint for the desired api"),
         # th.Property("auth_method", th.StringType, default='no_auth', required=False),
         # th.Property("auth_token", th.StringType, required=False),
-        th.Property('name', th.StringType, required=True,
-                    description="name of the stream"),
-        th.Property('path', th.StringType, default="", required=False,
+        th.Property('name', th.StringType, required=True, description="name of the stream"),
+        th.Property('path',
+                    th.StringType,
+                    default="",
+                    required=False,
                     description="the path appeneded to the `api_url`."),
-        th.Property('params', th.ObjectType(), required=False,
+        th.Property('params',
+                    th.ObjectType(),
+                    required=False,
                     description="an object of objects that provide the `params` in a `requests.get` method."),
-        th.Property('headers', th.ObjectType(), required=False,
+        th.Property('headers',
+                    th.ObjectType(),
+                    required=False,
                     description="an object of headers to pass into the api calls."),
-        th.Property("records_path", th.StringType, default="$[*]", required=False,
+        th.Property("records_path",
+                    th.StringType,
+                    default="$[*]",
+                    required=False,
                     description="a jsonpath string representing the path in the requests response that contains the "
-                                "records to process. Defaults to `$[*]`."),
-        th.Property("next_page_token_path", th.StringType, default="$.next_page", required=False,
+                    "records to process. Defaults to `$[*]`."),
+        th.Property("next_page_token_path",
+                    th.StringType,
+                    default="$.next_page",
+                    required=False,
                     description="a jsonpath string representing the path to the 'next page' token. "
-                                "Defaults to `$.next_page`"),
-        th.Property('primary_keys', th.ArrayType(th.StringType), required=True,
+                    "Defaults to `$.next_page`"),
+        th.Property("pagination_request_style",
+                    th.StringType,
+                    default="default",
+                    required=False,
+                    description="the pagination style to use for requests. "
+                    "Defaults to `default`"),
+        th.Property("pagination_response_style",
+                    th.StringType,
+                    default="default",
+                    required=False,
+                    description="the pagination style to use for response. "
+                    "Defaults to `default`"),
+        th.Property("pagination_page_size",
+                    th.IntegerType,
+                    default=None,
+                    required=False,
+                    description="the size of each page in records. "
+                    "Defaults to None"),
+        th.Property('primary_keys',
+                    th.ArrayType(th.StringType),
+                    required=True,
                     description="a list of the json keys of the primary key for the stream."),
-        th.Property('replication_key', th.StringType, required=False,
+        th.Property('replication_key',
+                    th.StringType,
+                    required=False,
                     description="the json key of the replication key. Note that this should be an incrementing "
-                                "integer or datetime object."),
-        th.Property('except_keys', th.ArrayType(th.StringType), default=[], required=False,
+                    "integer or datetime object."),
+        th.Property('except_keys',
+                    th.ArrayType(th.StringType),
+                    default=[],
+                    required=False,
                     description="This tap automatically flattens the entire json structure and builds keys based on "
-                                "the corresponding paths.; Keys, whether composite or otherwise, listed in this "
-                                "dictionary will not be recursively flattened, but instead their values will be; "
-                                "turned into a json string and processed in that format. This is also automatically "
-                                "done for any lists within the records; therefore,; records are not duplicated for "
-                                "each item in lists."),
-        th.Property('num_inference_records', th.NumberType, default=50, required=False,
+                    "the corresponding paths.; Keys, whether composite or otherwise, listed in this "
+                    "dictionary will not be recursively flattened, but instead their values will be; "
+                    "turned into a json string and processed in that format. This is also automatically "
+                    "done for any lists within the records; therefore,; records are not duplicated for "
+                    "each item in lists."),
+        th.Property('num_inference_records',
+                    th.NumberType,
+                    default=50,
+                    required=False,
                     description="number of records used to infer the stream's schema. Defaults to 50."),
     ).to_dict()
 
@@ -72,7 +111,10 @@ class TapRestApiMsdk(Tap):
                     self.config['path'],
                     self.config.get('params'),
                     self.config.get('headers'),
-                )
+                ),
+                pagination_request_style=self.config.get('pagination_request_style', 'default'),
+                pagination_response_style=self.config.get('pagination_response_style', 'default'),
+                pagination_page_size=self.config.get('pagination_page_size'),
             )
         ]
 
