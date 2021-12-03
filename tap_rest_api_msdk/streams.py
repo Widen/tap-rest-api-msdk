@@ -79,7 +79,7 @@ class DynamicStream(RestApiStream):
         pagination = response.json().get('pagination', {})
         if pagination and all(x in pagination for x in ['offset', 'limit', 'total']):
             next_page_token = pagination['offset'] + pagination['limit']
-            if next_page_token <= pagination['total']:
+            if next_page_token < pagination['total']:
                 return next_page_token
         return None
 
