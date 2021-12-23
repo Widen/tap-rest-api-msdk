@@ -13,6 +13,10 @@ plugins:
       settings:
         - name: name
           kind: string
+        - name: schema
+          kind: string
+        - name: schemas
+          kind: object
         - name: api_url
           kind: string
         - name: path
@@ -35,24 +39,102 @@ plugins:
           kind: array
         - name: streams_auth
           kind: array
-      # config:
-      #   name: us_earthquakes
-      #   api_url: https://earthquake.usgs.gov/fdsnws
-      #   path: /event/1/query
-      #   params:
-      #     format: geojson
-      #     starttime: "2014-01-01"
-      #     endtime: "2014-01-02"
-      #     minmagnitude: 1
-      #   primary_keys:
-      #     - id
-      #   records_path: "$.features[*]"
-      #   num_inference_records: 100
-      #   select:
-      #     - "*.*"
       config:
+        schemas:
+          us_earthquakes:
+            properties:
+              geometry_coordinates:
+                type: string
+              geometry_type:
+                type: string
+              id:
+                type: string
+              properties_alert:
+                type:
+                  - "null"
+                  - string
+              properties_cdi:
+                type:
+                  - "null"
+                  - number
+              properties_code:
+                type: string
+              properties_detail:
+                type: string
+              properties_dmin:
+                type:
+                  - "null"
+                  - number
+              properties_felt:
+                type:
+                  - integer
+                  - "null"
+              properties_gap:
+                type:
+                  - "null"
+                  - number
+              properties_ids:
+                type: string
+              properties_mag:
+                type: number
+              properties_magType:
+                type: string
+              properties_mmi:
+                type:
+                  - "null"
+                  - number
+              properties_net:
+                type: string
+              properties_nst:
+                type:
+                  - integer
+                  - "null"
+              properties_place:
+                type: string
+              properties_rms:
+                type: number
+              properties_sig:
+                type: integer
+              properties_sources:
+                type: string
+              properties_status:
+                type: string
+              properties_time:
+                type: integer
+              properties_title:
+                type: string
+              properties_tsunami:
+                type: integer
+              properties_type:
+                type: string
+              properties_types:
+                type: string
+              properties_tz:
+                type: "null"
+              properties_updated:
+                type: integer
+              properties_url:
+                type: string
+              type:
+                type: string
+            type: object
+        #   name: us_earthquakes
+        #   api_url: https://earthquake.usgs.gov/fdsnws
+        #   path: /event/1/query
+        #   params:
+        #     format: geojson
+        #     starttime: "2014-01-01"
+        #     endtime: "2014-01-02"
+        #     minmagnitude: 1
+        #   primary_keys:
+        #     - id
+        #   records_path: "$.features[*]"
+        #   num_inference_records: 100
+        #   select:
+        #     - "*.*"
         streams:
           - name: us_earthquakes
+            schema: us_earthquakes
             api_url: https://earthquake.usgs.gov/fdsnws
             path: /event/1/query
             params:
