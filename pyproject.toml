@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tap-rest-api-msdk"
-version = "0.4.0"
+version = "0.5.0"
 description = "`tap-rest-api-msdk` is a Singer tap for REST APIs, built with the Meltano SDK for Singer Taps."
 authors = ["Josh Lloyd", "Fred Reimer"]
 keywords = [
