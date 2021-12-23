@@ -20,14 +20,18 @@ class TapRestApiMsdk(Tap):
     name = "tap-rest-api-msdk"
 
     def __init__(self, **kwargs) -> None:
-        stream_schema = th.ObjectType(
+        stream_properties = th.ObjectType(
             th.Property("api_url",
                         th.StringType,
                         required=False,
                         description="the base url/endpoint for the desired api"),
-            # th.Property("auth_method", th.StringType, default='no_auth', required=False),
-            # th.Property("auth_token", th.StringType, required=False),
             th.Property('name', th.StringType, required=False, description="name of the stream"),
+            th.Property('schema',
+                        th.StringType,
+                        required=False,
+                        description="the name of the schema for the stream, if known.  "
+                        "Will not do discovery if specified. If present name must be in "
+                        "top-level schemas map/object."),
             th.Property('path',
                         th.StringType,
                         default="",
@@ -99,18 +103,12 @@ class TapRestApiMsdk(Tap):
                         description="number of records used to infer the stream's schema. Defaults to 50."),
         )
         # Make a copy of the stream schema ObjectType as a ProperiesList (but different list)
-        schema = th.PropertiesList()
-        schema.wrapped = copy.copy(stream_schema.wrapped)
-        # Add in headers for legacy single-stream configuration
-        schema.append(
-            th.Property('headers',
-                        th.ObjectType(),
-                        required=False,
-                        description="an object of headers to pass into the api calls."), )
+        properties = th.PropertiesList()
+        properties.wrapped = copy.copy(stream_properties.wrapped)
         # Add property for multiple streams
-        schema.append(
+        properties.append(
             th.Property("streams",
-                        th.ArrayType(stream_schema),
+                        th.ArrayType(stream_properties),
                         default=None,
                         required=False,
                         description="Array of objects that describe multiple streams"))
@@ -118,13 +116,18 @@ class TapRestApiMsdk(Tap):
         # This usually has a different source than rest of configuration as it contains
         # sensitive information (API credentials) and should not be checked into VCS as
         # the rest of the configuration for a data pipeline typically is.
-        schema.append(
+        properties.append(
             th.Property("streams_auth",
                         th.ArrayType(th.ObjectType()),
                         default=[],
                         required=False,
                         description="List of objects with a name, match type, and auth information"))
-        self.__class__.config_jsonschema = schema.to_dict()
+        properties.append(
+            th.Property("schemas",
+                        th.ObjectType(),
+                        required=False,
+                        description="a map of schema names and the schemas they represent"))
+        self.__class__.config_jsonschema = properties.to_dict()
         super().__init__(**kwargs)
 
     def _find_stream_auth(self, name: str) -> Dict[str, Any]:
@@ -150,6 +153,23 @@ class TapRestApiMsdk(Tap):
             headers = stream.get('headers', {})
             headers.update(auth.get('headers', {}))
             # Maybe do other authy stuff in the future...
+            # Do schema discovery, or don't if schema specified
+            if stream.get('schema') in self.config.get('schemas', {}):
+                self.logger.warn("Found schema, not doing discovery")
+                builder = SchemaBuilder()
+                builder.add_schema(self.config['schemas'][stream['schema']])
+                schema = builder.to_schema()
+            else:
+                self.logger.warn("No schema, doing discovery")
+                schema = self.get_schema(
+                    stream['api_url'],
+                    stream['records_path'],
+                    stream.get('except_keys'),
+                    stream.get('num_inference_records'),
+                    stream['path'],
+                    stream.get('params'),
+                    headers,
+                )
             dynamic_streams.append(
                 DynamicStream(
                     tap=self,
@@ -163,15 +183,7 @@ class TapRestApiMsdk(Tap):
                     primary_keys=stream['primary_keys'],
                     replication_key=stream.get('replication_key'),
                     except_keys=stream.get('except_keys'),
-                    schema=self.get_schema(
-                        stream['api_url'],
-                        stream['records_path'],
-                        stream.get('except_keys'),
-                        stream.get('num_inference_records'),
-                        stream['path'],
-                        stream.get('params'),
-                        headers,
-                    ),
+                    schema=schema,
                     pagination_request_style=stream.get('pagination_request_style', 'default'),
                     pagination_response_style=stream.get('pagination_response_style', 'default'),
                     pagination_page_size=stream.get('pagination_page_size'),
