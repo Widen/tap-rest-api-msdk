@@ -15,6 +15,7 @@ class DynamicStream(RestApiStream):
         self,
         tap,
         name,
+        api_url=None,
         path=None,
         params=None,
         headers=None,
@@ -34,6 +35,7 @@ class DynamicStream(RestApiStream):
             primary_keys = []
 
         self.name = name
+        self.api_url = api_url
         self.path = path
         self.params = params
         self.headers = headers
