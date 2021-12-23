@@ -17,6 +17,10 @@ plugins:
           kind: string
         - name: schemas
           kind: object
+        - name: common_parameters_list
+          kind: array
+        - name: common_parameters
+          kind: object
         - name: api_url
           kind: string
         - name: path
@@ -40,6 +44,21 @@ plugins:
         - name: streams_auth
           kind: array
       config:
+        common_parameters:
+          us_earthquakes:
+            api_url: https://earthquake.usgs.gov/fdsnws
+            path: /event/1/query
+            params:
+              format: geojson
+              starttime: "2014-01-01"
+              endtime: "2014-01-02"
+              minmagnitude: 1
+            primary_keys:
+              - id
+            records_path: "$.features[*]"
+            num_inference_records: 100
+            select:
+              - "*.*"
         schemas:
           us_earthquakes:
             properties:
@@ -133,21 +152,14 @@ plugins:
         #   select:
         #     - "*.*"
         streams:
-          - name: us_earthquakes
+          - name: us_earthquakes1
             schema: us_earthquakes
-            api_url: https://earthquake.usgs.gov/fdsnws
-            path: /event/1/query
-            params:
-              format: geojson
-              starttime: "2014-01-01"
-              endtime: "2014-01-02"
-              minmagnitude: 1
-            primary_keys:
-              - id
-            records_path: "$.features[*]"
-            num_inference_records: 100
-            select:
-              - "*.*"
+            common_parameters_list:
+              - us_earthquakes
+          - name: us_earthquakes2
+            schema: us_earthquakes
+            common_parameters_list:
+              - us_earthquakes
       # If you need auth, put it in a list of objects
       # matched with the name of the stream names
       # steams_auth:

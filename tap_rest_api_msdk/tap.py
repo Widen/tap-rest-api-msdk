@@ -32,6 +32,11 @@ class TapRestApiMsdk(Tap):
                         description="the name of the schema for the stream, if known.  "
                         "Will not do discovery if specified. If present name must be in "
                         "top-level schemas map/object."),
+            th.Property('common_parameters_list',
+                        th.ArrayType(th.StringType),
+                        required=False,
+                        description="an array of strings that point to entries in the "
+                        "top-level common_parameters map/object."),
             th.Property('path',
                         th.StringType,
                         default="",
@@ -127,6 +132,11 @@ class TapRestApiMsdk(Tap):
                         th.ObjectType(),
                         required=False,
                         description="a map of schema names and the schemas they represent"))
+        properties.append(
+            th.Property("common_parameters",
+                        th.ObjectType(),
+                        required=False,
+                        description="a map of common parameters that can be applied to streams"))
         self.__class__.config_jsonschema = properties.to_dict()
         super().__init__(**kwargs)
 
@@ -148,6 +158,11 @@ class TapRestApiMsdk(Tap):
         streams = self.config.get('streams', [self.config])
         dynamic_streams = []
         for stream in streams:
+            # Get common parameters, if any
+            if stream.get('common_parameters_list'):
+                for cp in stream['common_parameters_list']:
+                    if cp in self.config.get('common_parameters', {}):
+                        stream.update(self.config['common_parameters'][cp])
             # Do authy stuff
             auth = self._find_stream_auth(stream['name'])
             headers = stream.get('headers', {})
