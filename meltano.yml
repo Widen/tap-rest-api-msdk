@@ -34,7 +34,7 @@ plugins:
         - name: streams
           kind: array
         - name: streams_auth
-          kind: object
+          kind: array
       # config:
       #   name: us_earthquakes
       #   api_url: https://earthquake.usgs.gov/fdsnws
@@ -66,11 +66,25 @@ plugins:
             num_inference_records: 100
             select:
               - "*.*"
-        # If you need auth, but it in a separate object with properties named after streams
-        # steams_auth:
-        #   us_earthquakes:
-        #     headers:
-        #       "X-ApiKeys": "my secret api keys"
+      # If you need auth, put it in a list of objects
+      # matched with the name of the stream names
+      # steams_auth:
+      #   - match_type: exact
+      #     name: us_earthquakes
+      #     headers:
+      #       "X-ApiKeys": "my secret api keys"
+      #   - match_type: prefix
+      #     name: us_
+      #     headers:
+      #       "X-ApiKeys": "my secret api keys"
+      #   - match_type: suffix
+      #     name: earthquakes
+      #     headers:
+      #       "X-ApiKeys": "my secret api keys"
+      #   - match_type: regex
+      #     name: "^.*earth.*$"
+      #     headers:
+      #       "X-ApiKeys": "my secret api keys"
   loaders:
     - name: target-jsonl
       variant: andyh1203

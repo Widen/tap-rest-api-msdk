@@ -1,5 +1,7 @@
 """rest-api tap class."""
 import copy
+import re
+
 import requests
 from pathlib import Path, PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, cast
@@ -35,6 +37,10 @@ class TapRestApiMsdk(Tap):
                         th.ObjectType(),
                         required=False,
                         description="an object of objects that provide the `params` in a `requests.get` method."),
+            th.Property('headers',
+                        th.ObjectType(),
+                        required=False,
+                        description="an object of headers to pass into the api calls."),
             th.Property(
                 "records_path",
                 th.StringType,
@@ -114,47 +120,37 @@ class TapRestApiMsdk(Tap):
         # the rest of the configuration for a data pipeline typically is.
         schema.append(
             th.Property("streams_auth",
-                        th.ObjectType(),
+                        th.ArrayType(th.ObjectType()),
                         default=[],
                         required=False,
-                        description="List of objects with a name and header values for corresponding stream names"))
+                        description="List of objects with a name, match type, and auth information"))
         self.__class__.config_jsonschema = schema.to_dict()
         super().__init__(**kwargs)
 
+    def _find_stream_auth(self, name: str) -> Dict[str, Any]:
+        for auth in self.config.get('streams_auth', []):
+            if auth['match_type'] == 'exact' and name == auth['name']:
+                return auth
+            if auth['match_type'] == 'prefix' and name.startswith(auth['prefix']):
+                return auth
+            if auth['match_type'] == 'suffix' and name.endswith(auth['suffix']):
+                return auth
+            if auth['match_type'] == 'regex' and re.match(auth['regex'], name):
+                return auth
+        return {}
+
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams."""
-        if len(self.config.get('streams', [])) == 0:
-            return [
-                DynamicStream(
-                    tap=self,
-                    name=self.config['name'],
-                    api_url=self.config['api_url'],
-                    path=self.config['path'],
-                    params=self.config.get('params'),
-                    headers=self.config.get('headers'),
-                    records_path=self.config['records_path'],
-                    next_page_token_path=self.config['next_page_token_path'],
-                    primary_keys=self.config['primary_keys'],
-                    replication_key=self.config.get('replication_key'),
-                    except_keys=self.config.get('except_keys'),
-                    schema=self.get_schema(
-                        self.config['api_url'],
-                        self.config['records_path'],
-                        self.config.get('except_keys'),
-                        self.config.get('num_inference_records'),
-                        self.config['path'],
-                        self.config.get('params'),
-                        self.config.get('headers'),
-                    ),
-                    pagination_request_style=self.config.get('pagination_request_style', 'default'),
-                    pagination_response_style=self.config.get('pagination_response_style', 'default'),
-                    pagination_page_size=self.config.get('pagination_page_size'),
-                )
-            ]
-        streams = []
-        for stream in self.config['streams']:
-            headers = self.config.get('streams_auth', {}).get(stream['name'], {}).get('headers')
-            streams.append(
+        # Retrieve streams, or use base config as single stream if streams not present
+        streams = self.config.get('streams', [self.config])
+        dynamic_streams = []
+        for stream in streams:
+            # Do authy stuff
+            auth = self._find_stream_auth(stream['name'])
+            headers = stream.get('headers', {})
+            headers.update(auth.get('headers', {}))
+            # Maybe do other authy stuff in the future...
+            dynamic_streams.append(
                 DynamicStream(
                     tap=self,
                     name=stream['name'],
@@ -180,7 +176,7 @@ class TapRestApiMsdk(Tap):
                     pagination_response_style=stream.get('pagination_response_style', 'default'),
                     pagination_page_size=stream.get('pagination_page_size'),
                 ))
-        return streams
+        return dynamic_streams
 
     def get_schema(self, api_url, records_path, except_keys, inference_records, path, params, headers) -> dict:
         """Infer schema from the first records returned by api. Creates a Stream object."""
