@@ -9,8 +9,7 @@ SCHEMAS_DIR = Path(__file__).parent / Path("./schemas")
 
 class RestApiStream(RESTStream):
     """rest-api stream class."""
-
     @property
     def url_base(self) -> str:
         """Return the API URL root, configurable via tap settings."""
-        return self.config["api_url"]
+        return self.api_url

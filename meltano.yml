@@ -4,37 +4,73 @@ plugins:
   extractors:
     - name: tap-rest-api-msdk
       namespace: tap_rest_api_msdk
-      executable: ./tap-rest-api-msdk.sh
+      # executable: ./tap-rest-api-msdk.sh
+      pip_url: .
       capabilities:
         - state
         - catalog
         - discover
       settings:
-        - name: api_url
         - name: name
+          kind: string
+        - name: api_url
+          kind: string
         - name: path
+          kind: string
         - name: params
+          kind: object
         - name: headers
+          kind: object
         - name: records_path
+          kind: string
         - name: primary_keys
-        - name: replication_key
+          kind: array
         - name: except_keys
-        - name: num_inference_records
+          kind: array
+        - name: pagination_request_style
+        - name: pagination_response_style
+        - name: pagination_page_size
+          kind: integer
+        - name: streams
+          kind: array
+        - name: streams_auth
+          kind: object
+      # config:
+      #   name: us_earthquakes
+      #   api_url: https://earthquake.usgs.gov/fdsnws
+      #   path: /event/1/query
+      #   params:
+      #     format: geojson
+      #     starttime: "2014-01-01"
+      #     endtime: "2014-01-02"
+      #     minmagnitude: 1
+      #   primary_keys:
+      #     - id
+      #   records_path: "$.features[*]"
+      #   num_inference_records: 100
+      #   select:
+      #     - "*.*"
       config:
-        name: us_earthquakes
-        api_url: https://earthquake.usgs.gov/fdsnws
-        path: /event/1/query
-        params:
-          format: geojson
-          starttime: "2014-01-01"
-          endtime: "2014-01-02"
-          minmagnitude: 1
-        primary_keys:
-          - id
-        records_path: "$.features[*]"
-        num_inference_records: 100
-      select:
-        - '*.*'
+        streams:
+          - name: us_earthquakes
+            api_url: https://earthquake.usgs.gov/fdsnws
+            path: /event/1/query
+            params:
+              format: geojson
+              starttime: "2014-01-01"
+              endtime: "2014-01-02"
+              minmagnitude: 1
+            primary_keys:
+              - id
+            records_path: "$.features[*]"
+            num_inference_records: 100
+            select:
+              - "*.*"
+        # If you need auth, but it in a separate object with properties named after streams
+        # steams_auth:
+        #   us_earthquakes:
+        #     headers:
+        #       "X-ApiKeys": "my secret api keys"
   loaders:
     - name: target-jsonl
       variant: andyh1203
