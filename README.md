@@ -36,6 +36,10 @@ plugins:
         - name: params
         - name: headers
         - name: records_path
+        - name: next_page_token_path
+        - name: pagination_request_style
+        - name: pagination_response_style
+        - name: pagination_page_size
         - name: primary_keys
         - name: replication_key
         - name: except_keys
@@ -70,7 +74,7 @@ Config Options:
 - `headers`: optional: an object of headers to pass into the api calls.
 - `records_path`: optional: a jsonpath string representing the path in the requests response that contains the records to process. Defaults to `$[*]`.
 - `pagination_request_style`: optional: style for requesting pagination, defaults to `default`, see Pagination below.
-- `pagination_result_style`: optional: style of pagination results, defaults to `default`, see Pagination below.
+- `pagination_response_style`: optional: style of pagination results, defaults to `default`, see Pagination below.
 - `pagination_page_size`: optional: limit for size of page, defaults to None.
 - `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `$.next_page`.
 - `primary_keys`: required: a list of the json keys of the primary key for the stream.
@@ -82,8 +86,8 @@ Config Options:
 - `num_inference_keys`: optional: number of records used to infer the stream's schema. Defaults to 50.
 
 ## Pagination
-
 Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results stype default to the `default`, which is the pagination style originally implemented.
+
 ### Default Request Style
 The default request style for pagination is described below:
 - Use next_page_token_path if provided to extract the token from response if found; otherwise
