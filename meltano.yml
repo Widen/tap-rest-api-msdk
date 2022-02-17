@@ -16,6 +16,10 @@ plugins:
         - name: params
         - name: headers
         - name: records_path
+        - name: next_page_token_path
+        - name: pagination_request_style
+        - name: pagination_response_style
+        - name: pagination_page_size
         - name: primary_keys
         - name: replication_key
         - name: except_keys

@@ -11,19 +11,23 @@ from tap_rest_api_msdk.utils import flatten_json
 
 class DynamicStream(RestApiStream):
     """Define custom stream."""
-    def __init__(self,
-                 tap,
-                 name,
-                 path=None,
-                 params=None,
-                 headers=None,
-                 primary_keys=None,
-                 replication_key=None,
-                 except_keys=None,
-                 records_path=None,
-                 next_page_token_path=None,
-                 schema=None,
-                 ):
+    def __init__(
+        self,
+        tap,
+        name,
+        path=None,
+        params=None,
+        headers=None,
+        primary_keys=None,
+        replication_key=None,
+        except_keys=None,
+        records_path=None,
+        next_page_token_path=None,
+        schema=None,
+        pagination_request_style='default',
+        pagination_response_style='default',
+        pagination_page_size=None,
+    ):
         super().__init__(tap=tap, name=tap.name, schema=schema)
 
         if primary_keys is None:
@@ -38,6 +42,12 @@ class DynamicStream(RestApiStream):
         self.except_keys = except_keys
         self.records_path = records_path
         self.next_page_token_jsonpath = next_page_token_path  # Or override `get_next_page_token`.
+        self.pagination_page_size = pagination_page_size
+        get_url_params_styles = {'style1': self._get_url_params_style1}
+        self.get_url_params = get_url_params_styles.get(pagination_response_style, self._get_url_params_default)
+        get_next_page_token_styles = {'style1': self._get_next_page_token_style1}
+        self.get_next_page_token = get_next_page_token_styles.get(pagination_response_style,
+                                                                  self._get_next_page_token_default)
 
     @property
     def http_headers(self) -> dict:
@@ -54,12 +64,10 @@ class DynamicStream(RestApiStream):
 
         return headers
 
-    def get_next_page_token(self, response: requests.Response, previous_token: Optional[Any]) -> Optional[Any]:
+    def _get_next_page_token_default(self, response: requests.Response, previous_token: Optional[Any]) -> Optional[Any]:
         """Return a token for identifying next page or None if no more pages."""
         if self.next_page_token_jsonpath:
-            all_matches = extract_jsonpath(
-                self.next_page_token_jsonpath, response.json()
-            )
+            all_matches = extract_jsonpath(self.next_page_token_jsonpath, response.json())
             first_match = next(iter(all_matches), None)
             next_page_token = first_match
         else:
@@ -67,7 +75,15 @@ class DynamicStream(RestApiStream):
 
         return next_page_token
 
-    def get_url_params(self, context: Optional[dict], next_page_token: Optional[Any]) -> Dict[str, Any]:
+    def _get_next_page_token_style1(self, response: requests.Response, previous_token: Optional[Any]) -> Optional[Any]:
+        pagination = response.json().get('pagination', {})
+        if pagination and all(x in pagination for x in ['offset', 'limit', 'total']):
+            next_page_token = pagination['offset'] + pagination['limit']
+            if next_page_token <= pagination['total']:
+                return next_page_token
+        return None
+
+    def _get_url_params_default(self, context: Optional[dict], next_page_token: Optional[Any]) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {}
         if self.params:
@@ -75,6 +91,21 @@ class DynamicStream(RestApiStream):
                 params[k] = v
         if next_page_token:
             params["page"] = next_page_token
+        if self.replication_key:
+            params["sort"] = "asc"
+            params["order_by"] = self.replication_key
+        return params
+
+    def _get_url_params_style1(self, context: Optional[dict], next_page_token: Optional[Any]) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        params: dict = {}
+        if self.params:
+            for k, v in self.params.items():
+                params[k] = v
+        if next_page_token:
+            params["offset"] = next_page_token
+        if self.pagination_page_size is not None:
+            params["limit"] = self.pagination_page_size
         if self.replication_key:
             params["sort"] = "asc"
             params["order_by"] = self.replication_key
