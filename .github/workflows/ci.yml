@@ -24,16 +24,9 @@ jobs:
           # Create virtual environment and install dependencies
           poetry env use python
           poetry install --no-root
-      - name: Test the code
+      - name: Test and lint the code
         run: |
-          poetry run pytest
-      - name: Lint the code
-        run: |
-          poetry run black --check --diff tap_rest_api_msdk/ tests/
-          poetry run isort --check tap_rest_api_msdk/ tests/
-          poetry run flake8 tap_rest_api_msdk/ tests/
-          poetry run mypy tap_rest_api_msdk/
-          poetry run pydocstyle tap_rest_api_msdk/ tests/
+          poetry run tox -e py
 
 
 
