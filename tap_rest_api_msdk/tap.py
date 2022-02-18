@@ -1,10 +1,11 @@
 """rest-api tap class."""
 
+import copy
 from typing import Any, List
 
 import requests
 from genson import SchemaBuilder
-from singer_sdk import Stream, Tap
+from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from tap_rest_api_msdk.streams import DynamicStream
@@ -16,82 +17,45 @@ class TapRestApiMsdk(Tap):
 
     name = "tap-rest-api-msdk"
 
-    config_jsonschema = th.PropertiesList(
-        th.Property(
-            "api_url",
-            th.StringType,
-            required=True,
-            description="the base url/endpoint for the desired api",
-        ),
-        # th.Property("auth_method", th.StringType, default='no_auth', required=False),
-        # th.Property("auth_token", th.StringType, required=False),
-        th.Property(
-            "name", th.StringType, required=True, description="name of the stream"
-        ),
+    common_properties = th.PropertiesList(
         th.Property(
             "path",
             th.StringType,
-            default="",
             required=False,
-            description="the path appeneded to the `api_url`.",
+            description="the path appended to the `api_url`. Stream-level path will "
+            "overwrite top-level path",
         ),
         th.Property(
             "params",
             th.ObjectType(),
+            default={},
             required=False,
-            description="an object of objects that provide the `params` in a "
-            "`requests.get` method.",
+            description="an object providing the `params` in a `requests.get` method. "
+            "Stream level params will be merged"
+            "with top-level params with stream level params overwriting"
+            "top-level params with the same key.",
         ),
         th.Property(
             "headers",
             th.ObjectType(),
             required=False,
-            description="an object of headers to pass into the api calls.",
+            description="An object of headers to pass into the api calls. Stream level"
+            "headers will be merged with top-level params with stream"
+            "level params overwriting top-level params with the same key",
         ),
         th.Property(
             "records_path",
             th.StringType,
-            default="$[*]",
             required=False,
             description="a jsonpath string representing the path in the requests "
-            "response that contains the "
-            "records to process. Defaults to `$[*]`.",
-        ),
-        th.Property(
-            "next_page_token_path",
-            th.StringType,
-            default="$.next_page",
-            required=False,
-            description="a jsonpath string representing the path to the 'next page' "
-            "token. Defaults to `$.next_page`",
-        ),
-        th.Property(
-            "pagination_request_style",
-            th.StringType,
-            default="default",
-            required=False,
-            description="the pagination style to use for requests. "
-            "Defaults to `default`",
-        ),
-        th.Property(
-            "pagination_response_style",
-            th.StringType,
-            default="default",
-            required=False,
-            description="the pagination style to use for response. "
-            "Defaults to `default`",
-        ),
-        th.Property(
-            "pagination_page_size",
-            th.IntegerType,
-            default=None,
-            required=False,
-            description="the size of each page in records. " "Defaults to None",
+            "response that contains the records to process. Defaults "
+            "to `$[*]`. Stream level records_path will overwrite "
+            "the top-level records_path",
         ),
         th.Property(
             "primary_keys",
             th.ArrayType(th.StringType),
-            required=True,
+            required=False,
             description="a list of the json keys of the primary key for the stream.",
         ),
         th.Property(
@@ -123,44 +87,130 @@ class TapRestApiMsdk(Tap):
             description="number of records used to infer the stream's schema. "
             "Defaults to 50.",
         ),
-    ).to_dict()
+    )
 
-    def discover_streams(self) -> List[Stream]:
+    top_level_properties = th.PropertiesList(
+        th.Property(
+            "api_url",
+            th.StringType,
+            required=True,
+            description="the base url/endpoint for the desired api",
+        ),
+        # th.Property("auth_method", th.StringType, default='no_auth', required=False),
+        # th.Property("auth_token", th.StringType, required=False),
+        th.Property(
+            "next_page_token_path",
+            th.StringType,
+            default="$.next_page",
+            required=False,
+            description="a jsonpath string representing the path to the 'next page' "
+            "token. Defaults to `$.next_page`",
+        ),
+        th.Property(
+            "pagination_request_style",
+            th.StringType,
+            default="default",
+            required=False,
+            description="the pagination style to use for requests. "
+            "Defaults to `default`",
+        ),
+        th.Property(
+            "pagination_response_style",
+            th.StringType,
+            default="default",
+            required=False,
+            description="the pagination style to use for response. "
+            "Defaults to `default`",
+        ),
+        th.Property(
+            "pagination_page_size",
+            th.IntegerType,
+            default=None,
+            required=False,
+            description="the size of each page in records. Defaults to None",
+        ),
+    )
+
+    # add common properties to top-level properties
+    for prop in common_properties.wrapped:
+        top_level_properties.append(prop)
+
+    # add common properties to the stream schema
+    stream_properties = th.PropertiesList()
+    stream_properties.wrapped = copy.copy(common_properties.wrapped)
+    stream_properties.append(
+        th.Property(
+            "name", th.StringType, required=True, description="name of the stream"
+        ),
+    )
+
+    # add streams schema to top-level properties
+    top_level_properties.append(
+        th.Property(
+            "streams",
+            th.ArrayType(th.ObjectType(*stream_properties.wrapped)),
+            required=False,
+            description="An array of streams, designed for separate paths using the"
+            "same base url.",
+        ),
+    )
+
+    config_jsonschema = top_level_properties.to_dict()
+
+    def discover_streams(self) -> List[DynamicStream]:  # type: ignore
         """Return a list of discovered streams.
 
         Returns:
             A list of streams.
 
         """
-        return [
-            DynamicStream(
-                tap=self,
-                name=self.config["name"],
-                path=self.config["path"],
-                params=self.config.get("params"),
-                headers=self.config.get("headers"),
-                records_path=self.config["records_path"],
-                next_page_token_path=self.config["next_page_token_path"],
-                primary_keys=self.config["primary_keys"],
-                replication_key=self.config.get("replication_key"),
-                except_keys=self.config.get("except_keys"),
-                schema=self.get_schema(
-                    self.config["records_path"],
-                    self.config.get("except_keys"),  # type: ignore
-                    self.config.get("num_inference_records"),  # type: ignore
-                    self.config["path"],
-                    self.config.get("params"),  # type: ignore
-                    self.config.get("headers"),  # type: ignore
-                ),
-                pagination_request_style=self.config.get(  # type: ignore
-                    "pagination_request_style"
-                ),
-                pagination_response_style=self.config.get(  # type: ignore
-                    "pagination_response_style"
-                ),
-                pagination_page_size=self.config.get("pagination_page_size"),
+        # print(self.top_level_properties.to_dict())
+
+        streams = []
+        for stream in self.config["streams"]:
+            # resolve config
+            records_path = stream.get(
+                "records_path", self.config.get("records_path", "$[*]")
             )
-        ]
+            except_keys = stream.get("except_keys", self.config.get("except_keys", []))
+            path = stream.get("path", self.config.get("path", ""))
+            params = {**self.config.get("params", {}), **stream.get("params", {})}
+            headers = {**self.config.get("headers", {}), **stream.get("headers", {})}
+
+            streams.append(
+                DynamicStream(
+                    tap=self,
+                    name=stream["name"],
+                    path=path,
+                    params=params,
+                    headers=headers,
+                    records_path=records_path,
+                    primary_keys=stream.get(
+                        "primary_keys", self.config.get("primary_keys", [])
+                    ),
+                    replication_key=stream.get(
+                        "replication_key", self.config.get("replication_key", "")
+                    ),
+                    except_keys=except_keys,
+                    next_page_token_path=self.config["next_page_token_path"],
+                    pagination_request_style=self.config["pagination_request_style"],
+                    pagination_response_style=self.config["pagination_response_style"],
+                    pagination_page_size=self.config.get("pagination_page_size"),
+                    schema=self.get_schema(
+                        records_path,
+                        except_keys,
+                        stream.get(
+                            "num_inference_records",
+                            self.config["num_inference_records"],
+                        ),
+                        path,
+                        params,
+                        headers,
+                    ),
+                )
+            )
+
+        return streams
 
     def get_schema(
         self,
