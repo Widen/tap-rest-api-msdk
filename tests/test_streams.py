@@ -17,13 +17,15 @@ def config(extras: dict = None) -> dict:
     """
     contents = {
         "api_url": "https://example.com",
-        "name": "stream_name",
-        "auth_method": "no_auth",
-        "auth_token": "",
-        "path": "/path_test",
-        "primary_keys": ["key1", "key2"],
-        "replication_key": "key3",
-        "records_path": "$.records[*]",
+        "streams": [
+            {
+                "name": "stream_name",
+                "path": "/path_test",
+                "primary_keys": ["key1", "key2"],
+                "replication_key": "key3",
+                "records_path": "$.records[*]",
+            }
+        ],
     }
     if extras:
         for k, v in extras.items():
@@ -71,6 +73,7 @@ def url_path(path: str = "/path_test") -> str:
 
 def setup_api(
     requests_mock: Any,
+    url_path: str = url_path(),
     json_extras: dict = None,
     headers_extras: dict = None,
     matcher: Any = None,
@@ -79,6 +82,7 @@ def setup_api(
 
     Args:
         requests_mock: mock object for requests.
+        url_path: url to mack for mocking.
         json_extras: extra items to add to the response's results.
         headers_extras: extra items to add to the API call's header.
         matcher: a function that checks a request's input for the appropriate
@@ -93,12 +97,12 @@ def setup_api(
             headers_resp[k] = v
 
     requests_mock.get(
-        url_path(),
+        url_path,
         headers=headers_resp,
         json=json_resp(json_extras),
         additional_matcher=matcher,
     )
-    return requests.Session().get(url_path())
+    return requests.Session().get(url_path)
 
 
 def test_get_next_page_token_default_jsonpath(requests_mock: Any):
@@ -110,10 +114,7 @@ def test_get_next_page_token_default_jsonpath(requests_mock: Any):
     stream0 = TapRestApiMsdk(config=config(), parse_env_config=True).discover_streams()[
         0
     ]
-    assert (
-        stream0._get_next_page_token_default(resp, "previous_token_example")
-        == "next_page_token_example"
-    )
+    assert stream0._get_next_page_token_default(resp, "t") == "next_page_token_example"
     assert stream0.get_next_page_token == stream0._get_next_page_token_default
 
 
