@@ -3,6 +3,7 @@ name: Publish New Releases to Pypi
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   deploy:

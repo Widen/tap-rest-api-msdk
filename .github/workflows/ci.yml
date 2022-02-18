@@ -1,6 +1,9 @@
 name: CI (Testing/Linting) Workflow
 
-on: [push]
+on:
+  push:
+    branches-ignore:
+      - main
 
 jobs:
   build:
