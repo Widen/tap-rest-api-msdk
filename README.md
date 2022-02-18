@@ -89,7 +89,7 @@ provided at the top-level will be the default values for each stream.:
 Parameters that appear at the stream-level
 will overwrite their top-level counterparts except where noted below:
 - `name`: required: name of the stream.
-- `path`: optional: the path appeneded to the `api_url`.
+- `path`: optional: the path appended to the `api_url`.
 - `params`: optional: an object of objects that provide the `params` in a `requests.get` method.
   Stream level params will be merged with top-level params with stream level params overwriting 
   top-level params with the same key.
@@ -104,6 +104,9 @@ will overwrite their top-level counterparts except where noted below:
   turned into a json string and processed in that format. This is also automatically done for any lists within the records; therefore,
   records are not duplicated for each item in lists.
 - `num_inference_keys`: optional: number of records used to infer the stream's schema. Defaults to 50.
+- `scheam`: optional: A valid Singer schema or a path-like string that provides
+  the path to a `.json` file that contains a valid Singer schema. If provided, 
+  the schema will not be inferred from the results of an api call.
 
 ## Pagination
 Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results stype default to the `default`, which is the pagination style originally implemented.

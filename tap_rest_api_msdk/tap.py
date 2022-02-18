@@ -1,6 +1,7 @@
 """rest-api tap class."""
 
 import copy
+import json
 from typing import Any, List
 
 import requests
@@ -143,6 +144,19 @@ class TapRestApiMsdk(Tap):
             "name", th.StringType, required=True, description="name of the stream"
         ),
     )
+    stream_properties.append(
+        th.Property(
+            "schema",
+            th.CustomType(
+                {"anyOf": [{"type": "string"}, {"type": "null"}, {"type:": "object"}]}
+            ),
+            required=False,
+            description="A valid Singer schema or a path-like string that provides "
+            "the path to a `.json` file that contains a valid Singer "
+            "schema. If provided, the schema will not be inferred from "
+            "the results of an api call.",
+        ),
+    )
 
     # add streams schema to top-level properties
     top_level_properties.append(
@@ -177,6 +191,33 @@ class TapRestApiMsdk(Tap):
             params = {**self.config.get("params", {}), **stream.get("params", {})}
             headers = {**self.config.get("headers", {}), **stream.get("headers", {})}
 
+            schema = {}
+            schema_config = stream.get("schema")
+            if isinstance(schema_config, str):
+                self.logger.info("Found path to a schema, not doing discovery.")
+                with open(schema_config, "r") as f:
+                    schema = json.load(f)
+
+            elif isinstance(schema_config, dict):
+                self.logger.info("Found schema in config, not doing discovery.")
+                builder = SchemaBuilder()
+                builder.add_schema(schema_config)
+                schema = builder.to_schema()
+
+            else:
+                self.logger.info("No schema found. Inferring schema from API call.")
+                schema = self.get_schema(
+                    records_path,
+                    except_keys,
+                    stream.get(
+                        "num_inference_records",
+                        self.config["num_inference_records"],
+                    ),
+                    path,
+                    params,
+                    headers,
+                )
+
             streams.append(
                 DynamicStream(
                     tap=self,
@@ -196,17 +237,7 @@ class TapRestApiMsdk(Tap):
                     pagination_request_style=self.config["pagination_request_style"],
                     pagination_response_style=self.config["pagination_response_style"],
                     pagination_page_size=self.config.get("pagination_page_size"),
-                    schema=self.get_schema(
-                        records_path,
-                        except_keys,
-                        stream.get(
-                            "num_inference_records",
-                            self.config["num_inference_records"],
-                        ),
-                        path,
-                        params,
-                        headers,
-                    ),
+                    schema=schema,
                 )
             )
 

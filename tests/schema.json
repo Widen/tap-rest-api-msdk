@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "type": "object",
+  "properties": {
+    "key1": {
+      "type": "string"
+    },
+    "key2": {
+      "type": "string"
+    },
+    "key3": {
+      "type": "string"
+    },
+    "field1": {
+      "type": "string"
+    },
+    "field2": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "key1",
+    "key2",
+    "key3"
+  ]
+}
