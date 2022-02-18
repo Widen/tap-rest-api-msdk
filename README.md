@@ -138,7 +138,7 @@ poetry install
 
 ### Create and Run Tests
 
-Create tests within the `tap_rest_api_msdk/tests` subfolder and
+Create tests within the `tests/` directory and
 then run:
 
 ```bash
@@ -150,6 +150,15 @@ You can also test the `tap-rest-api-msdk` CLI interface directly using `poetry r
 ```bash
 poetry run tap-rest-api-msdk --help
 ```
+
+### Continuous Integration
+Run through the full suite of tests and linters by running
+
+```bash
+poetry run tox -e py
+```
+
+These must pass in order for PR's to be merged.
 
 ### Testing with [Meltano](https://www.meltano.com)
 
