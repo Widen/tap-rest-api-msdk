@@ -64,11 +64,13 @@ class DynamicStream(RestApiStream):
             next_page_token_path  # Or override `get_next_page_token`.
         )
         self.pagination_page_size = pagination_page_size
-        get_url_params_styles = {"style1": self._get_url_params_style1}
+        get_url_params_styles = {"style1": self._get_url_params_style1,
+                                 "fhir_hateoas": self._get_url_params_fhir_hateoas}
         self.get_url_params = get_url_params_styles.get(  # type: ignore
             pagination_response_style, self._get_url_params_default
         )
-        get_next_page_token_styles = {"style1": self._get_next_page_token_style1}
+        get_next_page_token_styles = {"style1": self._get_next_page_token_style1,
+                                      "fhir_hateoas": self._get_next_page_token_fhir_hateoas}
         self.get_next_page_token = get_next_page_token_styles.get(  # type: ignore
             pagination_response_style, self._get_next_page_token_default
         )
@@ -145,6 +147,42 @@ class DynamicStream(RestApiStream):
                 return next_page_token
         return None
 
+    def _get_next_page_token_fhir_hateoas(
+        self, response: requests.Response, previous_token: Optional[Any]
+    ) -> Any:
+        """Return a token for identifying next page or None if no more pages.
+
+        This method follows method of calculating the next page token from the
+        offsets, limits, and totals provided by the API.
+
+        Args:
+            response: required - the requests.Response given by the api call.
+            previous_token: optional - the token representing the current/previous page
+                of results.
+
+        Returns:
+              A str representing the next page to be queried or `None`.
+
+        """
+
+        if self.next_page_token_jsonpath:
+            all_matches = extract_jsonpath(
+                self.next_page_token_jsonpath, response.json()
+            )
+            first_match = next(iter(all_matches), None)
+            next_page_token = ""
+            required_tokens = first_match.split('&')
+            for required_token in required_tokens:
+                if required_token.startswith('_getpagesoffset'):
+                    next_page_token += required_token
+                elif required_token.startswith('_count'):
+                    next_page_token += '&' + required_token
+
+        else:
+            next_page_token = response.headers.get("X-Next-Page", None)
+
+        return next_page_token
+
     def _get_url_params_default(
         self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
@@ -190,6 +228,33 @@ class DynamicStream(RestApiStream):
             params["offset"] = next_page_token
         if self.pagination_page_size is not None:
             params["limit"] = self.pagination_page_size
+        if self.replication_key:
+            params["sort"] = "asc"
+            params["order_by"] = self.replication_key
+        return params
+
+    def _get_url_params_fhir_hateoas(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization.
+
+        Args:
+            context: optional - the singer context object.
+            next_page_token: optional - the token for the next page of results.
+
+        Returns:
+            An object containing the parameters to add to the request.
+
+        """
+        params: dict = {}
+        if self.params:
+            for k, v in self.params.items():
+                params[k] = v
+        if next_page_token:
+            page_tokens = next_page_token.split('&')
+            for page_token in page_tokens:
+                page_token_parts = page_token.split('=')
+                params[page_token_parts[0]] = page_token_parts[1]
         if self.replication_key:
             params["sort"] = "asc"
             params["order_by"] = self.replication_key
