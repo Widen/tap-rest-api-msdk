@@ -153,7 +153,7 @@ class DynamicStream(RestApiStream):
         """Return a token for identifying next page or None if no more pages.
 
         This method follows method of calculating the next page token from the
-        offsets, limits, and totals provided by the API.
+        API response itself following HATEOAS Rest model.
 
         Args:
             response: required - the requests.Response given by the api call.
@@ -165,18 +165,16 @@ class DynamicStream(RestApiStream):
 
         """
 
+        # Any initial path supplied needs to erased, using next_page_token parameters
+        # for subsequent calls instead.
+        self.path = ""
+
         if self.next_page_token_jsonpath:
             all_matches = extract_jsonpath(
                 self.next_page_token_jsonpath, response.json()
             )
             first_match = next(iter(all_matches), None)
-            next_page_token = ""
-            required_tokens = first_match.split('&')
-            for required_token in required_tokens:
-                if required_token.startswith('_getpagesoffset'):
-                    next_page_token += required_token
-                elif required_token.startswith('_count'):
-                    next_page_token += '&' + required_token
+            next_page_token = first_match
 
         else:
             next_page_token = response.headers.get("X-Next-Page", None)
@@ -241,6 +239,10 @@ class DynamicStream(RestApiStream):
         Args:
             context: optional - the singer context object.
             next_page_token: optional - the token for the next page of results.
+
+            Note: Under the HATEOAS model, the returned token contains all the 
+            required parameters for the subsequent call. The function splits them
+            into Dict key value pairs for the call.
 
         Returns:
             An object containing the parameters to add to the request.

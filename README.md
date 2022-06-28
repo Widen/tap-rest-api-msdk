@@ -31,23 +31,35 @@ plugins:
         - discover
       settings:
         - name: api_url
+          kind: string
+        - name: next_page_token_path
+          kind: string
+        - name: pagination_request_style
+          kind: string
+        - name: pagination_response_style
+          kind: string
+        - name: pagination_page_size
+          kind: integer
+        - name: streams
+          kind: array
         - name: name
+          kind: string
         - name: path
+          kind: string
         - name: params
+          kind: object
         - name: headers
+          kind: object
         - name: records_path
-        - name: next_page_token_path
-        - name: pagination_request_style
-        - name: pagination_response_style
-        - name: pagination_page_size
+          kind: string
         - name: primary_keys
+          kind: array
         - name: replication_key
+          kind: array
         - name: except_keys
+          kind: array
         - name: num_inference_records
-        - name: pagination_request_style
-        - name: pagination_response_style
-        - name: pagination_page_size
-        - name: next_page_token_path
+          kind: integer
 ```
 
 ```bash
@@ -109,7 +121,7 @@ will overwrite their top-level counterparts except where noted below:
   the schema will not be inferred from the results of an api call.
 
 ## Pagination
-Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results stype default to the `default`, which is the pagination style originally implemented.
+API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.
 
 ### Default Request Style
 The default request style for pagination is described below:
@@ -121,10 +133,13 @@ The default response style for pagination is described below:
 - If there is a token, add that as a `page` URL parameter.
 
 ### Additional Request Styles
-There are additional request styles supported as follows.
+There are additional request styles supported as follows for pagination.
 - `style1` - This style uses URL parameters named offset and limit
   - `offset` is calculated from the previous response, or not set if there is no previous response
   - `limit` is set to the `pagination_page_size` value, if specified, or not set
+- `fhir_hateoas` - This style parses the next_token response for the parameters to pass.
+  - The parameters are dynamic
+  - Is used by [FHIR API's](https://hl7.org/fhir/http.html) and API's utilising the HATEOAS Rest style [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS)
 
 ### Additional Response Styles
 There are additional response styles supported as follows.
@@ -138,6 +153,53 @@ There are additional response styles supported as follows.
     ```
   The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as total and offset to calculate the next token value.
 
+- `fhir_hateoas` - This style requires a well crafted `next_page_token_path` configuration
+  parameter to retrieve the request parameters from the GET request response for any subsequent requests. In this example
+    ```json
+    "next_page_token_path": "$.link[?(@.relation=='next')].url.`split(?, 1, 1)`"
+    ```  
+  the json path extensions includes logic to find the `link` list and then filter to the
+  where the value of the key `relation` = `next` and finally extracts just the parameters from the `url` value by splitting the string on the ? character.
+
+  Example json response from a FHIR API.
+
+
+    ```json
+    {
+      "resourceType": "Bundle",
+      "id": "44f2zf06-g53c-4218-a3ef-08bb6c2fde4a",
+      "meta": {
+        "lastUpdated": "2022-06-28T18:25:01.165+12:00"
+      },
+      "type": "searchset",
+      "total": 63,
+      "link": [
+        {
+          "relation": "self",
+          "url": "https://myexample_fhir_api_url/base_folder/ExampleService?_count=10&_getpageoffset=10&services-provided-type=MY_INITIAL_EXAMPLE_SERVICE"
+        },
+        {
+          "relation": "next",
+          "url": "https://myexample_fhir_api_url/base_folder?_getpages=44f2zf06-g53c-4218-a3ef-08bb6c2fde4a&_getpagesoffset=10&_count=10&_pretty=true&_bundletype=searchset"
+        }
+      ],
+      "entry": [
+        {
+          "fullUrl": "https://myexample_fhir_api_url/base_folder/ExampleService/example-service-123456",
+          "resource": {
+            "resourceType": "ExampleService",
+            "id": "example-service-123456",
+          }
+        }
+      ]
+  }
+    ```
+
+  Note: If you wish to extract the body from example GET request response above the following configuration parameter `records_path` will return the actual json content.
+  ```json
+  "records_path": "$.entry[*].resource"
+  ```
+
 ## Usage
 
 You can easily run `tap-rest-api-msdk` by itself or in a pipeline using [Meltano](www.meltano.com).
@@ -148,6 +210,12 @@ You can easily run `tap-rest-api-msdk` by itself or in a pipeline using [Meltano
 tap-rest-api-msdk --version
 tap-rest-api-msdk --help
 tap-rest-api-msdk --config CONFIG --discover > ./catalog.json
+```
+
+or
+
+```bash
+bash tap-rest-api-msdk --config=config.sample.json
 ```
 
 ## Developer Resources
