@@ -55,7 +55,7 @@ plugins:
         - name: primary_keys
           kind: array
         - name: replication_key
-          kind: array
+          kind: string
         - name: except_keys
           kind: array
         - name: num_inference_records
@@ -116,7 +116,7 @@ will overwrite their top-level counterparts except where noted below:
   turned into a json string and processed in that format. This is also automatically done for any lists within the records; therefore,
   records are not duplicated for each item in lists.
 - `num_inference_keys`: optional: number of records used to infer the stream's schema. Defaults to 50.
-- `scheam`: optional: A valid Singer schema or a path-like string that provides
+- `schema`: optional: A valid Singer schema or a path-like string that provides
   the path to a `.json` file that contains a valid Singer schema. If provided, 
   the schema will not be inferred from the results of an api call.
 
@@ -137,9 +137,9 @@ There are additional request styles supported as follows for pagination.
 - `style1` - This style uses URL parameters named offset and limit
   - `offset` is calculated from the previous response, or not set if there is no previous response
   - `limit` is set to the `pagination_page_size` value, if specified, or not set
-- `fhir_hateoas` - This style parses the next_token response for the parameters to pass.
+- `hateoas_body` - This style parses the next_token response for the parameters to pass.
   - The parameters are dynamic
-  - Is used by [FHIR API's](https://hl7.org/fhir/http.html) and API's utilising the HATEOAS Rest style [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS)
+  - Is used by API's utilising the HATEOAS Rest style [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS), including [FHIR API's](https://hl7.org/fhir/http.html).
 
 ### Additional Response Styles
 There are additional response styles supported as follows.
@@ -153,13 +153,13 @@ There are additional response styles supported as follows.
     ```
   The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as total and offset to calculate the next token value.
 
-- `fhir_hateoas` - This style requires a well crafted `next_page_token_path` configuration
+- `hateoas_body` - This style requires a well crafted `next_page_token_path` configuration
   parameter to retrieve the request parameters from the GET request response for any subsequent requests. In this example
     ```json
     "next_page_token_path": "$.link[?(@.relation=='next')].url.`split(?, 1, 1)`"
     ```  
   the json path extensions includes logic to find the `link` list and then filter to the
-  where the value of the key `relation` = `next` and finally extracts just the parameters from the `url` value by splitting the string on the ? character.
+  where the value of the key `relation` = `next` and finally extracts just the parameters from the `url` value by splitting the string on the ? character. The [JSONPath Evaluator](https://jsonpath.com/) website is useful to test the correct json path expression to use.
 
   Example json response from a FHIR API.
 
@@ -188,7 +188,7 @@ There are additional response styles supported as follows.
           "fullUrl": "https://myexample_fhir_api_url/base_folder/ExampleService/example-service-123456",
           "resource": {
             "resourceType": "ExampleService",
-            "id": "example-service-123456",
+            "id": "example-service-123456"
           }
         }
       ]

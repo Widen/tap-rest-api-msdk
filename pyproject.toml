@@ -2,7 +2,7 @@
 name = "tap-rest-api-msdk"
 version = "1.0.1"
 description = "`tap-rest-api-msdk` is a Singer tap for REST APIs, built with the Meltano SDK for Singer Taps."
-authors = ["Josh Lloyd", "Fred Reimer", "Steve Clarke]
+authors = ["Josh Lloyd", "Fred Reimer", "Steve Clarke"]
 keywords = [
     "ELT",
     "rest-api-msdk",
