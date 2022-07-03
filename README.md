@@ -61,7 +61,7 @@ plugins:
         - name: num_inference_records
           kind: integer
         - name: start_date
-          kind: string
+          kind: date_iso8601
         - name: search_parameter
           kind: string
         - name: search_prefix
