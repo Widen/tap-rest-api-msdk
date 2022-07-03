@@ -1,5 +1,6 @@
 """Stream type classes for tap-rest-api-msdk."""
 
+from datetime import datetime
 from typing import Any, Dict, Iterable, Optional
 
 import requests
@@ -28,6 +29,10 @@ class DynamicStream(RestApiStream):
         pagination_request_style: str = "default",
         pagination_response_style: str = "default",
         pagination_page_size: int = None,
+        start_date: datetime = None,
+        search_parameter: str = None,
+        search_prefix: str = None,
+        
     ) -> None:
         """Class initialization.
 
@@ -46,6 +51,9 @@ class DynamicStream(RestApiStream):
             pagination_request_style: see tap.py
             pagination_response_style: see tap.py
             pagination_page_size: see tap.py
+            start_date: see tap.py
+            search_parameter: see tap.py
+            search_prefix: see tap.py
 
         """
         super().__init__(tap=tap, name=tap.name, schema=schema)
@@ -75,6 +83,9 @@ class DynamicStream(RestApiStream):
         self.get_next_page_token = get_next_page_token_styles.get(  # type: ignore
             pagination_response_style, self._get_next_page_token_default
         )
+        self.start_date = start_date
+        self.search_parameter = search_parameter
+        self.search_prefix = search_prefix
 
     @property
     def http_headers(self) -> dict:
@@ -236,6 +247,23 @@ class DynamicStream(RestApiStream):
             params["order_by"] = self.replication_key
         return params
 
+    def get_start_date(
+        self, context: dict
+    ) -> Any:
+        """Returns a start date if a DateTime bookmark is available.
+
+        Args:
+            context: - the singer context object.
+
+        Returns:
+            An start date else and empty string.
+
+        """
+        try:
+            return self.get_starting_timestamp(context).strftime("%Y-%m-%dT%H:%M:%S")
+        except (ValueError, AttributeError):
+            return ""
+
     def _get_url_params_hateoas_body(
         self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
@@ -257,7 +285,11 @@ class DynamicStream(RestApiStream):
             An object containing the parameters to add to the request.
 
         """
-        print(f"Parms = {self.params}")
+
+        start_date = self.get_start_date(context)
+
+        bookmark = self.get_starting_replication_key_value(context)
+
         params: dict = {}
         if self.params:
             for k, v in self.params.items():
@@ -265,8 +297,12 @@ class DynamicStream(RestApiStream):
         if next_page_token:
             url_parsed = urlparse(next_page_token)
             params.update(parse_qsl(url_parsed.query))
-        # elif self.replication_key:
-        #     params[self.replication_key] = "gt2022-06-20T01:00:00"
+        elif self.replication_key:
+            if self.search_parameter and start_date:
+                params[self.search_parameter] = self.search_prefix + start_date
+            elif self.search_parameter and bookmark:
+                params[self.search_parameter] = self.search_prefix + bookmark
+
         return params
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:

@@ -10,11 +10,18 @@
     "streams": [
         {
             "name": "my_sample_table_name",
-            "path": "/ExampleService?services-provided-type=MY_INITIAL_EXAMPLE_SERVICE",
+            "path": "/ExampleService",
+            "params": {
+                "services-provided-type": "MY_INITIAL_EXAMPLE_SERVICE"
+            },
             "primary_keys": [
                 "id"
             ],
-            "records_path": "$.entry[*].resource"
+            "records_path": "$.entry[*].resource",
+            "replication_key": "meta_lastUpdated",
+            "start_date": "2001-01-01T00:00:00.00+12:00",            
+            "search_parameter": "last-updated",
+            "search_prefix": "gt"
         }
     ]
 }

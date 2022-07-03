@@ -60,6 +60,12 @@ plugins:
           kind: array
         - name: num_inference_records
           kind: integer
+        - name: start_date
+          kind: string
+        - name: search_parameter
+          kind: string
+        - name: search_prefix
+          kind: string
 ```
 
 ```bash
@@ -95,7 +101,10 @@ provided at the top-level will be the default values for each stream.:
 - `primary_keys`: optional: see stream-level params below.
 - `replication_key`: optional: see stream-level params below.
 - `except_keys`: optional: see stream-level params below.
-- `num_inference_keys`: optional:  see stream-level params below.
+- `num_inference_keys`: optional: see stream-level params below.
+- `start_date`: optional: see stream-level params below.
+- `search_parameter`: optional: see stream-level params below.
+- `search_prefix`: optional: see stream-level params below.
 
 #### Stream level config options. 
 Parameters that appear at the stream-level
@@ -119,6 +128,16 @@ will overwrite their top-level counterparts except where noted below:
 - `schema`: optional: A valid Singer schema or a path-like string that provides
   the path to a `.json` file that contains a valid Singer schema. If provided, 
   the schema will not be inferred from the results of an api call.
+- `start_date`: optional: used by the **hateoas_body** request style. This is an initial starting date for an incremental replication if there is no
+  existing state provided for an incremental replication. Example format 2022-06-10:23:10:10+1200.
+- `search_parameter`: optional: used by the **hateoas_body** request style. This is a search/query parameter used by the API for an incremental replication. 
+  The difference between the `replication_key` and the `search_parameter` is the search parameter is the field name used in request parameters whereas the 
+  replication_key is the name of the field in the API reponse. Example if the search_paramter = **last-updated** the generate schema from the api 
+  might be **meta_lastUpdated**. The replication_key is set to meta_lastUpdated, and the search_parameter to last-updated.
+- `search_prefix`: optional: used by the **hateoas_body** request style. If used it should be in conjunction with a `search_parameter`. The search prefix is
+  prepended to search parameter to describe the search operation. Example a search_prefix = **gt** means results Greater Than the given search parameter. 
+  Other examples of search parameter **eq** = Equal To, **lt** Less Than. See your API guide for valid search prefixes. Example: search_parameter=last-updated, the 
+  search_prefix = gt, current replication state = 2022-08-10:23:10:10+1200 creates a request parameter **last-updated=gt2022-06-10:23:10:10+1200**.
 
 ## Pagination
 API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.
@@ -153,13 +172,16 @@ There are additional response styles supported as follows.
     ```
   The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as total and offset to calculate the next token value.
 
-- `hateoas_body` - This style requires a well crafted `next_page_token_path` configuration
-  parameter to retrieve the request parameters from the GET request response for any subsequent requests. In this example
+- `hateoas_body` - This style requires a well crafted `next_page_token_path` configuration 
+  parameter to retrieve the request parameters from the GET request response for a subsequent request. The following example extracts the URL for the next pagination page.
+    ```json
+    "next_page_token_path": "$.link[?(@.relation=='next')].url."
+    ```
+  The following example demonstrates the power of JSONPath extensions by further splitting the URL and extracting just the parameters. Note: This is not required for FHIR API's but is provided for illustration of added functionality for complex use cases.
     ```json
     "next_page_token_path": "$.link[?(@.relation=='next')].url.`split(?, 1, 1)`"
-    ```  
-  the json path extensions includes logic to find the `link` list and then filter to the
-  where the value of the key `relation` = `next` and finally extracts just the parameters from the `url` value by splitting the string on the ? character. The [JSONPath Evaluator](https://jsonpath.com/) website is useful to test the correct json path expression to use.
+    ```       
+  The [JSONPath Evaluator](https://jsonpath.com/) website is useful to test the correct json path expression to use.
 
   Example json response from a FHIR API.
 

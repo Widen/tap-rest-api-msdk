@@ -3,6 +3,7 @@
 import copy
 import json
 from typing import Any, List
+from xmlrpc.client import Boolean
 
 import requests
 from genson import SchemaBuilder
@@ -11,7 +12,6 @@ from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
-
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
@@ -87,6 +87,34 @@ class TapRestApiMsdk(Tap):
             required=False,
             description="number of records used to infer the stream's schema. "
             "Defaults to 50.",
+        ),
+        th.Property(
+            "start_date",
+            th.DateTimeType,
+            required=False,
+            description="An optional initial starting date when using a date based "
+            "replication key and there is no state available.",
+        ),
+        th.Property(
+            "search_parameter",
+            th.StringType,
+            required=False,
+            description="An optional search parameter name used for querying specific "
+            "records from supported API's. The intend for this parameter is to continue "
+            "incrementally processing from a previous state. Example last-updated. "
+            "When combined with a previous state value may look like this example "
+            "last-updated=gt2022-08-01:00:00:00. Note: The api_query_parameter must "
+            "used with replication_key, where the replication_key is the schema "
+            "representation of the search_parameter.",
+        ),
+        th.Property(
+            "search_prefix",
+            th.StringType,
+            required=False,
+            description="An optional search value prefix which may be used by supported API's "
+            "for incremental replication, e.g. eq, gt, or lt. The prefix values represent Equal "
+            "to the provided value, Greater than, or Less than. An example when combined with "
+            "a date value gt2022-08-01:00:00:00 returns records greater than this set date.",
         ),
     )
 
@@ -190,6 +218,16 @@ class TapRestApiMsdk(Tap):
             path = stream.get("path", self.config.get("path", ""))
             params = {**self.config.get("params", {}), **stream.get("params", {})}
             headers = {**self.config.get("headers", {}), **stream.get("headers", {})}
+            start_date = stream.get("start_date", self.config.get("start_date", ""))
+            replication_key=stream.get(
+                        "replication_key", self.config.get("replication_key", "")
+                    )
+            search_parameter=stream.get(
+                        "search_parameter", self.config.get("search_parameter", "")
+                    )
+            search_prefix=stream.get(
+                        "search_prefix", self.config.get("search_prefix", "")
+                    )
 
             schema = {}
             schema_config = stream.get("schema")
@@ -217,6 +255,9 @@ class TapRestApiMsdk(Tap):
                     params,
                     headers,
                 )
+                # bookmark = self.get_starting_replication_key_value(context)
+                # schema = override_replication_key_datatype(schema,replication_key)
+                # print(f"The supper schema = {schema}")
 
             streams.append(
                 DynamicStream(
@@ -229,15 +270,16 @@ class TapRestApiMsdk(Tap):
                     primary_keys=stream.get(
                         "primary_keys", self.config.get("primary_keys", [])
                     ),
-                    replication_key=stream.get(
-                        "replication_key", self.config.get("replication_key", "")
-                    ),
+                    replication_key=replication_key,
                     except_keys=except_keys,
                     next_page_token_path=self.config["next_page_token_path"],
                     pagination_request_style=self.config["pagination_request_style"],
                     pagination_response_style=self.config["pagination_response_style"],
                     pagination_page_size=self.config.get("pagination_page_size"),
                     schema=schema,
+                    start_date=start_date,
+                    search_parameter=search_parameter,
+                    search_prefix=search_prefix,
                 )
             )
 
