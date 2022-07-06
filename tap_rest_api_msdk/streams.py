@@ -181,11 +181,11 @@ class DynamicStream(RestApiStream):
 
         """
 
-        # Any initial path supplied needs to erased, using next_page_token parameters
-        # for subsequent calls instead.
-        self.path = ""
-
         if self.next_page_token_jsonpath:
+            # Any initial path supplied needs to erased, using next_page_token parameters
+            # for subsequent calls instead.
+            self.path = ""
+
             all_matches = extract_jsonpath(
                 self.next_page_token_jsonpath, response.json()
             )
@@ -295,9 +295,18 @@ class DynamicStream(RestApiStream):
             for k, v in self.params.items():
                 params[k] = v
         if next_page_token:
+            # Parse the next_page_token for the path and parameters
             url_parsed = urlparse(next_page_token)
-            params.update(parse_qsl(url_parsed.query))
+            if url_parsed.query:
+                params.update(parse_qsl(url_parsed.query))
+            else:
+                params.update(parse_qsl(url_parsed.path))
+            if url_parsed.path == next_page_token:
+                self.path = ""
+            else:
+                self.path=url_parsed.path
         elif self.replication_key:
+            # Setup initial replication start_date or provided identifier
             if self.search_parameter and start_date:
                 params[self.search_parameter] = self.search_prefix + start_date
             elif self.search_parameter and bookmark:
