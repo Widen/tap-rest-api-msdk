@@ -254,12 +254,6 @@ class TapRestApiMsdk(Tap):
                     params,
                     headers,
                 )
-                # bookmark = self.get_starting_replication_key_value(context)
-                # schema = override_replication_key_datatype(schema,replication_key)
-                # print(f"The supper schema = {schema}")
-                self.logger.info(f"The schema = {schema}")
-                self.logger.info(f"The path = {path}")
-                self.logger.info(f"The params = {params}")
 
             streams.append(
                 DynamicStream(
