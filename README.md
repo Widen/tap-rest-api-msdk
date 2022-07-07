@@ -31,23 +31,41 @@ plugins:
         - discover
       settings:
         - name: api_url
+          kind: string
+        - name: next_page_token_path
+          kind: string
+        - name: pagination_request_style
+          kind: string
+        - name: pagination_response_style
+          kind: string
+        - name: pagination_page_size
+          kind: integer
+        - name: streams
+          kind: array
         - name: name
+          kind: string
         - name: path
+          kind: string
         - name: params
+          kind: object
         - name: headers
+          kind: object
         - name: records_path
-        - name: next_page_token_path
-        - name: pagination_request_style
-        - name: pagination_response_style
-        - name: pagination_page_size
+          kind: string
         - name: primary_keys
+          kind: array
         - name: replication_key
+          kind: string
         - name: except_keys
+          kind: array
         - name: num_inference_records
-        - name: pagination_request_style
-        - name: pagination_response_style
-        - name: pagination_page_size
-        - name: next_page_token_path
+          kind: integer
+        - name: start_date
+          kind: date_iso8601
+        - name: search_parameter
+          kind: string
+        - name: search_prefix
+          kind: string
 ```
 
 ```bash
@@ -83,7 +101,10 @@ provided at the top-level will be the default values for each stream.:
 - `primary_keys`: optional: see stream-level params below.
 - `replication_key`: optional: see stream-level params below.
 - `except_keys`: optional: see stream-level params below.
-- `num_inference_keys`: optional:  see stream-level params below.
+- `num_inference_keys`: optional: see stream-level params below.
+- `start_date`: optional: see stream-level params below.
+- `search_parameter`: optional: see stream-level params below.
+- `search_prefix`: optional: see stream-level params below.
 
 #### Stream level config options. 
 Parameters that appear at the stream-level
@@ -104,12 +125,22 @@ will overwrite their top-level counterparts except where noted below:
   turned into a json string and processed in that format. This is also automatically done for any lists within the records; therefore,
   records are not duplicated for each item in lists.
 - `num_inference_keys`: optional: number of records used to infer the stream's schema. Defaults to 50.
-- `scheam`: optional: A valid Singer schema or a path-like string that provides
+- `schema`: optional: A valid Singer schema or a path-like string that provides
   the path to a `.json` file that contains a valid Singer schema. If provided, 
   the schema will not be inferred from the results of an api call.
+- `start_date`: optional: used by the **hateoas_body** request style. This is an initial starting date for an incremental replication if there is no
+  existing state provided for an incremental replication. Example format 2022-06-10:23:10:10+1200.
+- `search_parameter`: optional: used by the **hateoas_body** request style. This is a search/query parameter used by the API for an incremental replication. 
+  The difference between the `replication_key` and the `search_parameter` is the search parameter is the field name used in request parameters whereas the 
+  replication_key is the name of the field in the API reponse. Example if the search_paramter = **last-updated** the generate schema from the api 
+  might be **meta_lastUpdated**. The replication_key is set to meta_lastUpdated, and the search_parameter to last-updated.
+- `search_prefix`: optional: used by the **hateoas_body** request style. If used it should be in conjunction with a `search_parameter`. The search prefix is
+  prepended to search parameter to describe the search operation. Example a search_prefix = **gt** means results Greater Than the given search parameter. 
+  Other examples of search parameter **eq** = Equal To, **lt** Less Than. See your API guide for valid search prefixes. Example: search_parameter=last-updated, the 
+  search_prefix = gt, current replication state = 2022-08-10:23:10:10+1200 creates a request parameter **last-updated=gt2022-06-10:23:10:10+1200**.
 
 ## Pagination
-Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results stype default to the `default`, which is the pagination style originally implemented.
+API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.
 
 ### Default Request Style
 The default request style for pagination is described below:
@@ -121,10 +152,13 @@ The default response style for pagination is described below:
 - If there is a token, add that as a `page` URL parameter.
 
 ### Additional Request Styles
-There are additional request styles supported as follows.
+There are additional request styles supported as follows for pagination.
 - `style1` - This style uses URL parameters named offset and limit
   - `offset` is calculated from the previous response, or not set if there is no previous response
   - `limit` is set to the `pagination_page_size` value, if specified, or not set
+- `hateoas_body` - This style parses the next_token response for the parameters to pass.
+  - The parameters are dynamic
+  - Is used by API's utilising the HATEOAS Rest style [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS), including [FHIR API's](https://hl7.org/fhir/http.html).
 
 ### Additional Response Styles
 There are additional response styles supported as follows.
@@ -138,6 +172,56 @@ There are additional response styles supported as follows.
     ```
   The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as total and offset to calculate the next token value.
 
+- `hateoas_body` - This style requires a well crafted `next_page_token_path` configuration 
+  parameter to retrieve the request parameters from the GET request response for a subsequent request. The following example extracts the URL for the next pagination page.
+    ```json
+    "next_page_token_path": "$.link[?(@.relation=='next')].url."
+    ```
+  The following example demonstrates the power of JSONPath extensions by further splitting the URL and extracting just the parameters. Note: This is not required for FHIR API's but is provided for illustration of added functionality for complex use cases.
+    ```json
+    "next_page_token_path": "$.link[?(@.relation=='next')].url.`split(?, 1, 1)`"
+    ```       
+  The [JSONPath Evaluator](https://jsonpath.com/) website is useful to test the correct json path expression to use.
+
+  Example json response from a FHIR API.
+
+
+    ```json
+    {
+      "resourceType": "Bundle",
+      "id": "44f2zf06-g53c-4218-a3ef-08bb6c2fde4a",
+      "meta": {
+        "lastUpdated": "2022-06-28T18:25:01.165+12:00"
+      },
+      "type": "searchset",
+      "total": 63,
+      "link": [
+        {
+          "relation": "self",
+          "url": "https://myexample_fhir_api_url/base_folder/ExampleService?_count=10&_getpageoffset=10&services-provided-type=MY_INITIAL_EXAMPLE_SERVICE"
+        },
+        {
+          "relation": "next",
+          "url": "https://myexample_fhir_api_url/base_folder?_getpages=44f2zf06-g53c-4218-a3ef-08bb6c2fde4a&_getpagesoffset=10&_count=10&_pretty=true&_bundletype=searchset"
+        }
+      ],
+      "entry": [
+        {
+          "fullUrl": "https://myexample_fhir_api_url/base_folder/ExampleService/example-service-123456",
+          "resource": {
+            "resourceType": "ExampleService",
+            "id": "example-service-123456"
+          }
+        }
+      ]
+  }
+    ```
+
+  Note: If you wish to extract the body from example GET request response above the following configuration parameter `records_path` will return the actual json content.
+  ```json
+  "records_path": "$.entry[*].resource"
+  ```
+
 ## Usage
 
 You can easily run `tap-rest-api-msdk` by itself or in a pipeline using [Meltano](www.meltano.com).
@@ -148,6 +232,12 @@ You can easily run `tap-rest-api-msdk` by itself or in a pipeline using [Meltano
 tap-rest-api-msdk --version
 tap-rest-api-msdk --help
 tap-rest-api-msdk --config CONFIG --discover > ./catalog.json
+```
+
+or
+
+```bash
+bash tap-rest-api-msdk --config=config.sample.json
 ```
 
 ## Developer Resources
