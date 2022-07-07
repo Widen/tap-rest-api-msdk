@@ -3,7 +3,6 @@
 import copy
 import json
 from typing import Any, List
-from xmlrpc.client import Boolean
 
 import requests
 from genson import SchemaBuilder

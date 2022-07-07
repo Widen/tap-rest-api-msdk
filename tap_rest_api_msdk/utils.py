@@ -2,7 +2,6 @@
 
 import json
 from typing import Any
-from dateutil.parser import parse
 
 
 def flatten_json(obj: dict, except_keys: list = None) -> dict:
