@@ -9,13 +9,59 @@ from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
+from singer_sdk.authenticators import APIAuthenticatorBase, APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator, OAuthJWTAuthenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
+
+class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
+
+    @property
+    def oauth_request_body(self) -> dict:
+        client_id = self.config.get('client_id')
+        client_secret = self.config.get('client_secret')
+        username = self.config.get('username')
+        password = self.config.get('password')
+        refresh_token = self.config.get('refresh_token')
+        grant_type = self.config.get('grant_type')
+        scope = self.config.get('scope')
+        resource = self.config.get('access_token_url')
+        redirect_uri = self.config.get('redirect_uri')
+        # TODO Dynamically build up the Dict to return
+        
+        if grant_type == 'password':
+            return {
+                'grant_type': grant_type,
+                'scope': scope,
+                'resource': resource,
+                'client_id': client_id,
+                'username': username,
+                'password': password,
+            }
+        elif grant_type == 'refresh_token':
+            return {
+                'grant_type': grant_type,
+                'resource': resource,
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'refresh_token': refresh_token,
+            }
+        elif grant_type == 'client_credentials':
+            return {
+                'grant_type': grant_type,
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'scope': scope,
+            }
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
 
     name = "tap-rest-api-msdk"
+
+    # Required for Authentication in tap.py
+    tap_name = "tap-rest-api-msdk"
+    headers = {}
+    params = {}
 
     common_properties = th.PropertiesList(
         th.Property(
@@ -124,7 +170,16 @@ class TapRestApiMsdk(Tap):
             required=True,
             description="the base url/endpoint for the desired api",
         ),
-        # th.Property("auth_method", th.StringType, default='no_auth', required=False),
+        th.Property(
+            "auth_method",
+             th.StringType,
+             default='no_auth',
+             required=False,
+             description="The method of authentication used by the API. Supported options include "
+             "oauth: for OAuth2 authentication, basic: Basic Header authorization - base64-encoded "
+             "username and password, api_key: for API Keys in the header e.g. X-API-KEY. Defaults "
+             "to no_auth which will take authentication parameters passed via the headers config."
+        ),
         # th.Property("auth_token", th.StringType, required=False),
         th.Property(
             "next_page_token_path",
@@ -227,6 +282,8 @@ class TapRestApiMsdk(Tap):
             search_prefix=stream.get(
                         "search_prefix", self.config.get("search_prefix", "")
                     )
+            self.headers = headers
+            self.params = params
 
             schema = {}
             schema_config = stream.get("schema")
@@ -308,6 +365,15 @@ class TapRestApiMsdk(Tap):
 
         """
         # todo: this request format is not very robust
+
+        auth_method = self.config.get('auth_method', '')
+        if auth_method:
+            # Initializing Authenticator required in TAP for to dynamically discover schema
+            authenticator = self.authenticator
+            if authenticator:
+                headers.update(authenticator.auth_headers or {})
+                params.update(authenticator.auth_params or {})
+
         r = requests.get(self.config["api_url"] + path, params=params, headers=headers)
         if r.ok:
             records = extract_jsonpath(records_path, input=r.json())
@@ -328,3 +394,41 @@ class TapRestApiMsdk(Tap):
 
         self.logger.debug(f"{builder.to_json(indent=2)}")
         return builder.to_schema()
+
+    @property
+    def authenticator(self) -> APIAuthenticatorBase:
+        """TODO
+        """
+        # return self.get_auth_methods.get( # type: ignore
+        #     self.auth_method, self._get_auth_api_key
+        # )
+
+        auth_method = self.config.get('auth_method', "")
+
+        # Using API Key Authenticator
+        if auth_method == "api_key":
+            if self.headers:
+                for k, v in self.headers.items():
+                    key = k
+                    value = v
+            return APIKeyAuthenticator(
+                stream=self,
+                key=key,
+                value=value
+            )
+        # Using Basic Authenticator
+        elif auth_method == "basic":
+            return BasicAuthenticator(
+                stream=self,
+                username=self.config.get('username', ''),
+                password=self.config.get('password', '')
+            )
+        # Using OAuth Authenticator
+        elif auth_method == "oauth":
+            return ConfigurableOAuthAuthenticator(
+                stream=self,
+                auth_endpoint=self.config.get('access_token_url', ''),
+                oauth_scopes=self.config.get('scope', ''),
+            )
+        else:
+            raise ValueError(f"Unknown authentication method {auth_method}. Use api_key, basic, or oauth.")
