@@ -192,105 +192,114 @@ class TapRestApiMsdk(Tap):
         ),
         th.Property(
             "auth_method",
-             th.StringType,
-             default='no_auth',
-             required=False,
-             description="The method of authentication used by the API. Supported options include "
-             "oauth: for OAuth2 authentication, basic: Basic Header authorization - base64-encoded "
-             "username + password config items, api_key: for API Keys in the header e.g. X-API-KEY,"
-             " bearer_token: for Bearer token authorization. Defaults to no_auth which will take "
-             "authentication parameters passed via the headers config."
+            th.StringType,
+            default='no_auth',
+            required=False,
+            description="The method of authentication used by the API. Supported options include "
+            "oauth: for OAuth2 authentication, basic: Basic Header authorization - base64-encoded "
+            "username + password config items, api_key: for API Keys in the header e.g. X-API-KEY,"
+            " bearer_token: for Bearer token authorization. Defaults to no_auth which will take "
+            "authentication parameters passed via the headers config."
         ),
         th.Property(
             "api_keys",
-             th.ObjectType(),
-             required=False,
-             description="A object of API Key/Value pairs used by the api_key auth method "
-             "Example: { ""X-API-KEY"": ""my secret value""}."
+            th.ObjectType(),
+            required=False,
+            description="A object of API Key/Value pairs used by the api_key auth method "
+            "Example: { ""X-API-KEY"": ""my secret value""}."
         ),
         th.Property(
             "client_id",
-             th.StringType,
-             required=False,
-             description="Used for the OAuth2 authentication method. The public application ID that's "
-             "assigned for Authentication. The client_id should accompany a client_secret."
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. The public application ID that's "
+            "assigned for Authentication. The client_id should accompany a client_secret."
         ),
         th.Property(
             "client_secret",
-             th.StringType,
-             required=False,
-             description="Used for the OAuth2 authentication method. The client_secret is a secret "
-             "known only to the application and the authorization server. It is essential the "
-             "application's own password."
-        ),       
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. The client_secret is a secret "
+            "known only to the application and the authorization server. It is essential the "
+            "application's own password."
+        ),     
         th.Property(
             "username",
-             th.StringType,
-             required=False,
-             description="Used for a number of authentication methods that use a user "
-             "password combination for authentication."
+            th.StringType,
+            required=False,
+            description="Used for a number of authentication methods that use a user "
+            "password combination for authentication."
         ),
         th.Property(
             "password",
-             th.StringType,
-             required=False,
-             description="Used for a number of authentication methods that use a user "
-             "password combination for authentication."
+            th.StringType,
+            required=False,
+            description="Used for a number of authentication methods that use a user "
+            "password combination for authentication."
         ),
         th.Property(
             "bearer_token",
-             th.StringType,
-             required=False,
-             description="Used for the Bearer Authentication method, which uses a token "
-             "as part of the authorization header for authentication."
+            th.StringType,
+            required=False,
+            description="Used for the Bearer Authentication method, which uses a token "
+            "as part of the authorization header for authentication."
         ),
         th.Property(
             "refresh_token",
-             th.StringType,
-             required=False,
-             description="An OAuth2 Refresh Token is a string that the OAuth2 client can use to "
-             "get a new access token without the user's interaction."
+            th.StringType,
+            required=False,
+            description="An OAuth2 Refresh Token is a string that the OAuth2 client can use to "
+            "get a new access token without the user's interaction."
         ),
         th.Property(
             "grant_type",
-             th.StringType,
-             required=False,
-             description="Used for the OAuth2 authentication method. The grant_type is required "
-             "to describe the OAuth2 flow. Flows support by this tap include client_credentials, "
-             "refresh_token, password."
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. The grant_type is required "
+            "to describe the OAuth2 flow. Flows support by this tap include client_credentials, "
+            "refresh_token, password."
         ),
         th.Property(
             "scope",
-             th.StringType,
-             required=False,
-             description="Used for the OAuth2 authentication method. The scope is optional, "
-             "it is a mechanism to limit the amount of access that is granted to an access token. "
-             "One or more scopes can be provided delimited by a space."
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. The scope is optional, "
+            "it is a mechanism to limit the amount of access that is granted to an access token. "
+            "One or more scopes can be provided delimited by a space."
         ),
         th.Property(
             "access_token_url",
-             th.StringType,
-             required=False,
-             description="Used for the OAuth2 authentication method. This is the end-point for "
-             "the authentication server used to exchange the authorization codes for a access "
-             "token."
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. This is the end-point for "
+            "the authentication server used to exchange the authorization codes for a access "
+            "token."
         ),
         th.Property(
             "redirect_uri",
-             th.StringType,
-             required=False,
-             description="Used for the OAuth2 authentication method. This optional as the "
-             "redirect_uri may be part of the token returned by the authentication server. If a "
-             "redirect_uri is provided, it determines where the API server redirects the user "
-             "after the user completes the authorization flow."
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. This is optional as the "
+            "redirect_uri may be part of the token returned by the authentication server. If a "
+            "redirect_uri is provided, it determines where the API server redirects the user "
+            "after the user completes the authorization flow."
         ),
         th.Property(
             "oauth_extras",
-             th.ObjectType(),
-             required=False,
-             description="A object of Key/Value pairs for additional oauth config parameters "
-             "which may be required by the authorization server."
-             "Example: { ""resource"": ""https://analysis.windows.net/powerbi/api""}."
+            th.ObjectType(),
+            required=False,
+            description="A object of Key/Value pairs for additional oauth config parameters "
+            "which may be required by the authorization server."
+            "Example: { ""resource"": ""https://analysis.windows.net/powerbi/api""}."
+        ),
+        th.Property(
+            "oauth_expiration_secs",
+            th.IntegerType,
+            default=None,
+            required=False,
+            description="Used for OAuth2 authentication method. This optional setting is a "
+            "timer for the expiration of a token in seconds. If not set the OAuth will use "
+            "the default expiration set in the token by the authorization server."
         ),
         th.Property(
             "next_page_token_path",
@@ -546,6 +555,7 @@ class TapRestApiMsdk(Tap):
                 stream=self,
                 auth_endpoint=self.config.get('access_token_url', ''),
                 oauth_scopes=self.config.get('scope', ''),
+                default_expiration=self.config.get('oauth_expiration_secs', ''),
             )
         # Using Bearer Token Authenticator
         elif auth_method == "bearer_token":

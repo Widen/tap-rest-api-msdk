@@ -70,6 +70,8 @@ plugins:
           kind: string
         - name: oauth_extras
           kind: object
+        - name: oauth_expiration_secs
+          kind: integer
       config:
         api_url: https://earthquake.usgs.gov/fdsnws
         records_path: "$.features[*]"

@@ -7,9 +7,13 @@ This is particularly useful if you have a stream with a very large and complex s
 a stream that outputs records with varying schemas for each record. Can also be used for
 simpler more reliable streams.
 
-Please note that authentication capabilities have not yet been developed for this tap,
-unless you are able to pass the authentication through the header.
-If you are interested in contributing this, please fork and make a pull request.
+There are many forms of Authentication supported by this tap. By default for legacy support, you can pass Authentication via headers. If you want to use the built in support for Authentication, this tap supports
+- Basic Authentication
+- API Key
+- Bearer Token
+- OAuth
+
+Please note that OAuthJWTAuthentication has not been developed. If you are interested in contributing this, please fork and make a pull request. 
 
 Built with the Meltano [SDK](https://gitlab.com/meltano/sdk) for Singer Taps.
 
@@ -92,6 +96,8 @@ plugins:
           kind: string
         - name: oauth_extras
           kind: object
+        - name: oauth_expiration_secs
+          kind: integer
 ```
 
 ```bash
@@ -144,6 +150,7 @@ provided at the top-level will be the default values for each stream.:
 - `access_token_url`: optional: see authentication params below.
 - `redirect_uri`: optional: see authentication params below.
 - `oauth_extras`: optional: see authentication params below.
+- `oauth_expiration_secs`: optional: see authentication params below.
 
 #### Stream level config options. 
 Parameters that appear at the stream-level
@@ -214,6 +221,9 @@ will overwrite their top-level counterparts except where noted below:
   authorization flow.
 - `oauth_extras`: optional: A object of Key/Value pairs for additional oauth config parameters
   which may be required by the authorization server. Example: { "resource": "https://analysis.windows.net/powerbi/api" }.
+- `oauth_expiration_secs`: optional: Used for OAuth2 authentication method. This optional setting
+  is a timer for the expiration of a token in seconds. If not set the OAuth will use the default
+  expiration set in the token by the authorization server.
 
 ## Pagination
 API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.
