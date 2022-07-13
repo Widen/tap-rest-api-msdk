@@ -17,6 +17,11 @@ class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
 
     @property
     def oauth_request_body(self) -> dict:
+        """Build up a list of OAuth2 parameters to use depending
+        on what configuration items have been set and the type of OAuth
+        flow set by the grant_type.
+        """
+
         client_id = self.config.get('client_id')
         client_secret = self.config.get('client_secret')
         username = self.config.get('username')
@@ -24,34 +29,51 @@ class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
         refresh_token = self.config.get('refresh_token')
         grant_type = self.config.get('grant_type')
         scope = self.config.get('scope')
-        resource = self.config.get('access_token_url')
         redirect_uri = self.config.get('redirect_uri')
-        # TODO Dynamically build up the Dict to return
-        
+        oauth_extras = self.config.get('oauth_extras')
+
+        oauth_params = {}
+
+        # Test mandatory parameters based on grant_type
+        if grant_type:
+            oauth_params['grant_type'] = grant_type
+        else:
+            raise ValueError("Missing grant type for OAuth Token.")
+
+        if grant_type == 'client_credentials':
+            if not (client_id and client_secret):
+                raise ValueError(
+                    "Missing either client_id or client_secret for 'client_credentials' grant_type."
+                )
+
         if grant_type == 'password':
-            return {
-                'grant_type': grant_type,
-                'scope': scope,
-                'resource': resource,
-                'client_id': client_id,
-                'username': username,
-                'password': password,
-            }
-        elif grant_type == 'refresh_token':
-            return {
-                'grant_type': grant_type,
-                'resource': resource,
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'refresh_token': refresh_token,
-            }
-        elif grant_type == 'client_credentials':
-            return {
-                'grant_type': grant_type,
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'scope': scope,
-            }
+            if not (username and password):
+                raise ValueError("Missing either username or password for 'password' grant_type.")
+
+        if grant_type == 'refresh_token':
+            if not refresh_token:
+                raise ValueError("Missing either refresh_token for 'refresh_token' grant_type.")
+
+        # Add parameters if they are set
+        if scope:
+            oauth_params['scope'] = scope
+        if client_id:
+            oauth_params['client_id'] = client_id
+        if client_secret:
+            oauth_params['client_secret'] = client_secret
+        if username:
+            oauth_params['username'] = username
+        if password:
+            oauth_params['password'] = password
+        if refresh_token:
+            oauth_params['refresh_token'] = refresh_token
+        if redirect_uri:
+            oauth_params['redirect_uri'] = redirect_uri
+        if oauth_extras:
+            for k, v in oauth_extras.items():
+                oauth_params[k] = v
+
+        return oauth_params
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
@@ -181,9 +203,9 @@ class TapRestApiMsdk(Tap):
         ),
         th.Property(
             "api_keys",
-             th.StringType,
+             th.ObjectType(),
              required=False,
-             description="A dictionary of API Key/Value pairs used by the api_key auth method "
+             description="A object of API Key/Value pairs used by the api_key auth method "
              "Example: { ""X-API-KEY"": ""my secret value""}."
         ),
         th.Property(
@@ -261,6 +283,14 @@ class TapRestApiMsdk(Tap):
              "redirect_uri may be part of the token returned by the authentication server. If a "
              "redirect_uri is provided, it determines where the API server redirects the user "
              "after the user completes the authorization flow."
+        ),
+        th.Property(
+            "oauth_extras",
+             th.ObjectType(),
+             required=False,
+             description="A object of Key/Value pairs for additional oauth config parameters "
+             "which may be required by the authorization server."
+             "Example: { ""resource"": ""https://analysis.windows.net/powerbi/api""}."
         ),
         th.Property(
             "next_page_token_path",
@@ -446,7 +476,7 @@ class TapRestApiMsdk(Tap):
         # todo: this request format is not very robust
 
         auth_method = self.config.get('auth_method', '')
-        if auth_method:
+        if auth_method and not auth_method == 'no_auth':
             # Initializing Authenticator required in TAP for to dynamically discover schema
             authenticator = self.authenticator
             if authenticator:
@@ -525,5 +555,5 @@ class TapRestApiMsdk(Tap):
             )
         else:
             raise ValueError(
-                f"Unknown authentication method {auth_method}. Use api_key, basic, or oauth."
+                f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token."
             )

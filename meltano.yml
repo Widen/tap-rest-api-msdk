@@ -67,7 +67,9 @@ plugins:
         - name: access_token_url
           kind: string
         - name: redirect_uri
-          kind: string        
+          kind: string
+        - name: oauth_extras
+          kind: object
       config:
         api_url: https://earthquake.usgs.gov/fdsnws
         records_path: "$.features[*]"

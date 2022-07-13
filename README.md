@@ -90,6 +90,8 @@ plugins:
           kind: string
         - name: redirect_uri
           kind: string
+        - name: oauth_extras
+          kind: object
 ```
 
 ```bash
@@ -141,6 +143,7 @@ provided at the top-level will be the default values for each stream.:
 - `scope`: optional: see authentication params below.
 - `access_token_url`: optional: see authentication params below.
 - `redirect_uri`: optional: see authentication params below.
+- `oauth_extras`: optional: see authentication params below.
 
 #### Stream level config options. 
 Parameters that appear at the stream-level
@@ -209,6 +212,8 @@ will overwrite their top-level counterparts except where noted below:
   redirect_uri may be part of the token returned by the authentication server. If a redirect_uri
   is provided, it determines where the API server redirects the user after the user completes the
   authorization flow.
+- `oauth_extras`: optional: A object of Key/Value pairs for additional oauth config parameters
+  which may be required by the authorization server. Example: { "resource": "https://analysis.windows.net/powerbi/api" }.
 
 ## Pagination
 API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.
