@@ -43,7 +43,31 @@ plugins:
         - name: search_parameter
           kind: string
         - name: search_prefix
-          kind: string          
+          kind: string
+        - name: auth_method
+          kind: string
+        - name: api_key
+          kind: object
+        - name: client_id
+          kind: password
+        - name: client_secret
+          kind: password
+        - name: username
+          kind: string
+        - name: password
+          kind: password
+        - name: bearer_token
+          kind: password
+        - name: refresh_token
+          kind: oauth
+        - name: grant_type
+          kind: string
+        - name: scope
+          kind: string
+        - name: access_token_url
+          kind: string
+        - name: redirect_uri
+          kind: string        
       config:
         api_url: https://earthquake.usgs.gov/fdsnws
         records_path: "$.features[*]"

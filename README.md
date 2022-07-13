@@ -66,6 +66,30 @@ plugins:
           kind: string
         - name: search_prefix
           kind: string
+        - name: auth_method
+          kind: string
+        - name: api_key
+          kind: object
+        - name: client_id
+          kind: password
+        - name: client_secret
+          kind: password
+        - name: username
+          kind: string
+        - name: password
+          kind: password
+        - name: bearer_token
+          kind: password
+        - name: refresh_token
+          kind: oauth
+        - name: grant_type
+          kind: string
+        - name: scope
+          kind: string
+        - name: access_token_url
+          kind: string
+        - name: redirect_uri
+          kind: string
 ```
 
 ```bash
@@ -105,6 +129,18 @@ provided at the top-level will be the default values for each stream.:
 - `start_date`: optional: see stream-level params below.
 - `search_parameter`: optional: see stream-level params below.
 - `search_prefix`: optional: see stream-level params below.
+- `auth_method`: optional: see authentication params below.
+- `api_key`: optional: see authentication params below.
+- `client_id`: optional: see authentication params below.
+- `client_secret`: optional: see authentication params below.
+- `username`: optional: see authentication params below.
+- `password`: optional: see authentication params below.
+- `bearer_token`: optional: see authentication params below.
+- `refresh_token`: optional: see authentication params below.
+- `grant_type`: optional: see authentication params below.
+- `scope`: optional: see authentication params below.
+- `access_token_url`: optional: see authentication params below.
+- `redirect_uri`: optional: see authentication params below.
 
 #### Stream level config options. 
 Parameters that appear at the stream-level
@@ -138,6 +174,41 @@ will overwrite their top-level counterparts except where noted below:
   prepended to search parameter to describe the search operation. Example a search_prefix = **gt** means results Greater Than the given search parameter. 
   Other examples of search parameter **eq** = Equal To, **lt** Less Than. See your API guide for valid search prefixes. Example: search_parameter=last-updated, the 
   search_prefix = gt, current replication state = 2022-08-10:23:10:10+1200 creates a request parameter **last-updated=gt2022-06-10:23:10:10+1200**.
+
+#### Top-Level Authentication config options.
+- `auth_method`: optional: The method of authentication used by the API. Supported options
+  include:
+  - **oauth**: for OAuth2 authentication
+  - **basic**: Basic Header authorization - base64-encoded username + password config items
+  - **api_key**: for API Keys in the header e.g. X-API-KEY.
+  - **bearer_token**: for Bearer token authorization.
+  - Defaults to no_auth which will take authentication parameters passed via the headers config.
+- `api_keys`: optional: A dictionary of API Key/Value pairs used by the api_key auth method
+  Example: { "X-API-KEY": "my secret value"}.
+- `client_id`: optional: Used for the OAuth2 authentication method. The public application ID
+  that's assigned for Authentication. The **client_id** should accompany a **client_secret**.
+- `client_secret`: optional: Used for the OAuth2 authentication method. The client_secret is a
+  secret known only to the application and the authorization server. It is essential the
+  application's own password.
+- `username`: optional: Used for a number of authentication methods that use a user
+  password combination for authentication.
+- `password`: optional: Used for a number of authentication methods that use a user password
+  combination for authentication.
+- `bearer_token`: optional: Used for the Bearer Authentication method, which uses a token as part
+  of the authorization header for authentication.
+- `refresh_token`: optional: An OAuth2 Refresh Token is a string that the OAuth2 client can use to
+  get a new access token without the user's interaction.
+- `grant_type`: optional: Used for the OAuth2 authentication method. The grant_type is required
+  to describe the OAuth2 flow. Flows support by this tap include **client_credentials**, **refresh_token**, **password**.
+- `scope`: optional: Used for the OAuth2 authentication method. The scope is optional, it is a
+  mechanism to limit the amount of access that is granted to an access token. One or more scopes
+  can be provided delimited by a space.
+- `access_token_url`: optional: Used for the OAuth2 authentication method. This is the end-point
+  for the authentication server used to exchange the authorization codes for a access token.
+- `redirect_uri`: optional: Used for the OAuth2 authentication method. This optional as the
+  redirect_uri may be part of the token returned by the authentication server. If a redirect_uri
+  is provided, it determines where the API server redirects the user after the user completes the
+  authorization flow.
 
 ## Pagination
 API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.

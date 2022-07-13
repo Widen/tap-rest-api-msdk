@@ -9,7 +9,7 @@ from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
-from singer_sdk.authenticators import APIAuthenticatorBase, APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator, OAuthJWTAuthenticator
+from singer_sdk.authenticators import APIAuthenticatorBase, APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
 
@@ -60,8 +60,6 @@ class TapRestApiMsdk(Tap):
 
     # Required for Authentication in tap.py
     tap_name = "tap-rest-api-msdk"
-    headers = {}
-    params = {}
 
     common_properties = th.PropertiesList(
         th.Property(
@@ -87,7 +85,7 @@ class TapRestApiMsdk(Tap):
             required=False,
             description="An object of headers to pass into the api calls. Stream level"
             "headers will be merged with top-level params with stream"
-            "level params overwriting top-level params with the same key",
+            "level params overwriting top-level params with the same key.",
         ),
         th.Property(
             "records_path",
@@ -177,10 +175,93 @@ class TapRestApiMsdk(Tap):
              required=False,
              description="The method of authentication used by the API. Supported options include "
              "oauth: for OAuth2 authentication, basic: Basic Header authorization - base64-encoded "
-             "username and password, api_key: for API Keys in the header e.g. X-API-KEY. Defaults "
-             "to no_auth which will take authentication parameters passed via the headers config."
+             "username + password config items, api_key: for API Keys in the header e.g. X-API-KEY,"
+             " bearer_token: for Bearer token authorization. Defaults to no_auth which will take "
+             "authentication parameters passed via the headers config."
         ),
-        # th.Property("auth_token", th.StringType, required=False),
+        th.Property(
+            "api_keys",
+             th.StringType,
+             required=False,
+             description="A dictionary of API Key/Value pairs used by the api_key auth method "
+             "Example: { ""X-API-KEY"": ""my secret value""}."
+        ),
+        th.Property(
+            "client_id",
+             th.StringType,
+             required=False,
+             description="Used for the OAuth2 authentication method. The public application ID that's "
+             "assigned for Authentication. The client_id should accompany a client_secret."
+        ),
+        th.Property(
+            "client_secret",
+             th.StringType,
+             required=False,
+             description="Used for the OAuth2 authentication method. The client_secret is a secret "
+             "known only to the application and the authorization server. It is essential the "
+             "application's own password."
+        ),       
+        th.Property(
+            "username",
+             th.StringType,
+             required=False,
+             description="Used for a number of authentication methods that use a user "
+             "password combination for authentication."
+        ),
+        th.Property(
+            "password",
+             th.StringType,
+             required=False,
+             description="Used for a number of authentication methods that use a user "
+             "password combination for authentication."
+        ),
+        th.Property(
+            "bearer_token",
+             th.StringType,
+             required=False,
+             description="Used for the Bearer Authentication method, which uses a token "
+             "as part of the authorization header for authentication."
+        ),
+        th.Property(
+            "refresh_token",
+             th.StringType,
+             required=False,
+             description="An OAuth2 Refresh Token is a string that the OAuth2 client can use to "
+             "get a new access token without the user's interaction."
+        ),
+        th.Property(
+            "grant_type",
+             th.StringType,
+             required=False,
+             description="Used for the OAuth2 authentication method. The grant_type is required "
+             "to describe the OAuth2 flow. Flows support by this tap include client_credentials, "
+             "refresh_token, password."
+        ),
+        th.Property(
+            "scope",
+             th.StringType,
+             required=False,
+             description="Used for the OAuth2 authentication method. The scope is optional, "
+             "it is a mechanism to limit the amount of access that is granted to an access token. "
+             "One or more scopes can be provided delimited by a space."
+        ),
+        th.Property(
+            "access_token_url",
+             th.StringType,
+             required=False,
+             description="Used for the OAuth2 authentication method. This is the end-point for "
+             "the authentication server used to exchange the authorization codes for a access "
+             "token."
+        ),
+        th.Property(
+            "redirect_uri",
+             th.StringType,
+             required=False,
+             description="Used for the OAuth2 authentication method. This optional as the "
+             "redirect_uri may be part of the token returned by the authentication server. If a "
+             "redirect_uri is provided, it determines where the API server redirects the user "
+             "after the user completes the authorization flow."
+        ),
         th.Property(
             "next_page_token_path",
             th.StringType,
@@ -282,8 +363,6 @@ class TapRestApiMsdk(Tap):
             search_prefix=stream.get(
                         "search_prefix", self.config.get("search_prefix", "")
                     )
-            self.headers = headers
-            self.params = params
 
             schema = {}
             schema_config = stream.get("schema")
@@ -397,18 +476,26 @@ class TapRestApiMsdk(Tap):
 
     @property
     def authenticator(self) -> APIAuthenticatorBase:
-        """TODO
+        """Calls an appropriate SDK Authentication method based on the the set auth_method.
+        If an auth_method is not provided, the tap will call the API using any settings from
+        the headers and params config.
+        Note: Each auth method requires certain configuration to be present see README.md
+        for each auth methods configuration requirements.
+
+        Raises:
+            ValueError: if the auth_method is unknown.
+
+        Returns:
+            A SDK Authenticator or None if no auth_method supplied.
         """
-        # return self.get_auth_methods.get( # type: ignore
-        #     self.auth_method, self._get_auth_api_key
-        # )
 
         auth_method = self.config.get('auth_method', "")
+        api_keys = self.config.get('api_keys', '')
 
-        # Using API Key Authenticator
+        # Using API Key Authenticator, keys are extracted from api_keys dict
         if auth_method == "api_key":
-            if self.headers:
-                for k, v in self.headers.items():
+            if api_keys:
+                for k, v in api_keys.items():
                     key = k
                     value = v
             return APIKeyAuthenticator(
@@ -430,5 +517,13 @@ class TapRestApiMsdk(Tap):
                 auth_endpoint=self.config.get('access_token_url', ''),
                 oauth_scopes=self.config.get('scope', ''),
             )
+        # Using Bearer Token Authenticator
+        elif auth_method == "bearer_token":
+            return BearerTokenAuthenticator(
+                stream=self,
+                token=self.config.get('bearer_token', ''),
+            )
         else:
-            raise ValueError(f"Unknown authentication method {auth_method}. Use api_key, basic, or oauth.")
+            raise ValueError(
+                f"Unknown authentication method {auth_method}. Use api_key, basic, or oauth."
+            )
