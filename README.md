@@ -225,6 +225,26 @@ will overwrite their top-level counterparts except where noted below:
   is a timer for the expiration of a token in seconds. If not set the OAuth will use the default
   expiration set in the token by the authorization server.
 
+#### Complex Authentication
+
+The previous section showed out of the box methods for a single factor of authentication e.g. x-api-key, basic or oauth. If the API requires multiple forms of authentication, you may need to pass some of the authentication methods via the headers to be be combined with the main auth_method.
+
+Example:
+An API may use OAuth2 for authentication but also requires an X-API-KEY to be supplied as well. In this situation pass the X-API-KEY as part of the `headers` config, and the rest of the config should be set for OAuth e.g.
+
+- headers = '{"x-api-key": "my_secret_api_key"}'
+- auth_method = "oauth"
+- grant_type = "client_credentials"
+- access_token_url = "https://auth.example.server/oauth2/token"
+- client_id = "my_example_client_id"
+- client_secret = "my_example_client_secret"
+
+Some servers may require additional information like a `Request-Context` which is usually Base64 encoded. If this is the case it should be included in the `headers` config as well.
+
+Example:
+
+- headers = '{"x-api-key": "my_secret_api_key", "Request-Context": "my_example_Base64_encoded_json_object"}'
+
 ## Pagination
 API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.
 
