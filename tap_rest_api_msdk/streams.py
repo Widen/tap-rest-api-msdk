@@ -182,15 +182,20 @@ class DynamicStream(RestApiStream):
         """
 
         if self.next_page_token_jsonpath:
-            # Any initial path supplied needs to erased, using next_page_token parameters
-            # for subsequent calls instead.
-            self.path = ""
 
             all_matches = extract_jsonpath(
                 self.next_page_token_jsonpath, response.json()
             )
             first_match = next(iter(all_matches), None)
             next_page_token = first_match
+
+            # Setting up the url using next_page_token parameters
+            # for subsequent calls.
+            url_parsed = urlparse(next_page_token)
+            if url_parsed.path == next_page_token:
+                self.path = ""
+            else:
+                self.path=url_parsed.path
 
         else:
             next_page_token = response.headers.get("X-Next-Page", None)
