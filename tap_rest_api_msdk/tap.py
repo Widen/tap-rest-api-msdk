@@ -133,7 +133,7 @@ class TapRestApiMsdk(Tap):
     )
 
     # add common properties to top-level properties
-    for prop in common_properties.wrapped:
+    for prop in common_properties.wrapped.values():
         top_level_properties.append(prop)
 
     # add common properties to the stream schema
@@ -162,7 +162,7 @@ class TapRestApiMsdk(Tap):
     top_level_properties.append(
         th.Property(
             "streams",
-            th.ArrayType(th.ObjectType(*stream_properties.wrapped)),
+            th.ArrayType(th.ObjectType(*stream_properties.wrapped.values())),
             required=False,
             description="An array of streams, designed for separate paths using the"
             "same base url.",
