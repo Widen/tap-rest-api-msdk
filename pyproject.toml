@@ -18,7 +18,7 @@ repository = "https://github.com/Widen/tap-rest-api-msdk"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "<3.10,>=3.7.1"
+python = "<3.12,>=3.7.1"
 requests = "^2.25.1"
 singer-sdk = "^0.26.0"
 genson = "^1.2.2"
@@ -33,7 +33,7 @@ pydocstyle = "^6.1.1"
 mypy = "^0.910"
 types-requests = "^2.25.8"
 requests-mock = "^1.9.3"
-isort = "^5.10.1"
+isort = "^5.11.5"
 
 [tool.black]
 exclude = ".*simpleeval.*"
