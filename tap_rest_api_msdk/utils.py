@@ -1,10 +1,10 @@
 """Basic utility functions."""
 
 import json
-from typing import Any
+from typing import Any, Optional
 
 
-def flatten_json(obj: dict, except_keys: list = None) -> dict:
+def flatten_json(obj: dict, except_keys: Optional[list] = None) -> dict:
     """Flattens a json object by appending the patch as a key in the returned object.
 
     Automatically converts arrays and any provided keys into json strings to prevent
