@@ -45,6 +45,12 @@ plugins:
           kind: string
         - name: pagination_page_size
           kind: integer
+        - name: pagination_results_limit
+          kind: integer
+        - name: pagination_next_page_param
+          kind: string
+        - name: pagination_limit_per_page_param
+          kind: string
         - name: streams
           kind: array
         - name: name
@@ -125,6 +131,9 @@ provided at the top-level will be the default values for each stream.:
 - `pagination_request_style`: optional: style for requesting pagination, defaults to `default`, see Pagination below.
 - `pagination_response_style`: optional: style of pagination results, defaults to `default`, see Pagination below.
 - `pagination_page_size`: optional: limit for size of page, defaults to None.
+- `pagination_results_limit`: optional: limits the max number of records. Note: Will cause an exception if the limit is hit (except for the `restapi_header_link_paginator`). This should be used for development purposes to restrict the total number of records returned by the API. Defaults to None.
+- `pagination_next_page_param`: optional: The name of the param that indicates the page/offset. Defaults to None.
+- `pagination_limit_per_page_param`: optional: The name of the param that indicates the limit/per_page. Defaults to None.
 - `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `$.next_page`.
 - `streams`: required: a list of objects that contain the configuration of each stream. See stream-level params below.
 - `path`: optional: see stream-level params below.
@@ -247,29 +256,41 @@ Example:
 - headers = '{"x-api-key": "my_secret_api_key", "Request-Context": "my_example_Base64_encoded_json_object"}'
 
 ## Pagination
-API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.
+API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented. Where possible, this tap utilises the Meltano SDK paginators https://sdk.meltano.com/en/latest/reference.html#pagination . 
 
 ### Default Request Style
-The default request style for pagination is described below:
-- Use next_page_token_path if provided to extract the token from response if found; otherwise
-- use X-Next-Page header from response
+The default request style for pagination is using a `JSONPath Paginator` to locate the next page token.
 
 ### Default Response Style
 The default response style for pagination is described below:
 - If there is a token, add that as a `page` URL parameter.
 
-### Additional Request Styles
+### Additional Request / Paginator Styles
 There are additional request styles supported as follows for pagination.
-- `style1` - This style uses URL parameters named offset and limit
+- `jsonpath_paginator` or `default` - This style obtains the token for the next page from a specific location in the response body via JSONPath notation. In a number of situations the `jsonpath_paginator` is a good alternative to the `hateoas_paginator`.
+  - `next_page_token_path` - The jsonpath to next page token. Example: `"$['@odata.nextLink']"`, this locates the token returned via the Microsoft Graph API. Default `'$.next_page'`.
+- `offset_paginator` or `style1` - This style uses URL parameters named offset and limit
   - `offset` is calculated from the previous response, or not set if there is no previous response
-  - `limit` is set to the `pagination_page_size` value, if specified, or not set
-- `hateoas_body` - This style parses the next_token response for the parameters to pass.
-  - The parameters are dynamic
-  - Is used by API's utilising the HATEOAS Rest style [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS), including [FHIR API's](https://hl7.org/fhir/http.html).
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
+  - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `limit`.
+  - `next_page_token_path` - Use to locate an appropriate link in the response. Default None. Example, jsonpath to get the offset from the NOAA API `'$.metadata.resultset'`.
+- `simple_header_paginator` - This style uses links in the Header Response to locate the next page. Example the `x-next-page` link used by the Gitlab API.
+- `header_link_paginator` - This style uses the default header link paginator from the Meltano SDK.
+- `restapi_header_link_paginator` - This style is a variant on the header_link_paginator. It supports the ability to read from GitHub API.
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
+  - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `per_page`.
+  - `pagination_results_limit` - Restricts the total number of records returned from the API. Default None i.e. no limit.
+- `hateoas_paginator` - This style parses the next_token response for the parameters to pass. It is used by API's utilising the HATEOAS Rest style [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS), including [FHIR API's](https://hl7.org/fhir/http.html).
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default None.
+  - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page e.g. `_count` for [FHIR API's](https://hl7.org/fhir/http.html). Default None.
+- `single_page_paginator` - A paginator that does works with single-page endpoints.
+- `page_number_paginator` - Paginator class for APIs that use page number. Looks at the response link to determine more pages.
+  - `next_page_token_path` - Use to locate an appropriate link in the response. Default `"hasMore"`.
 
 ### Additional Response Styles
 There are additional response styles supported as follows.
-- `style1` - This style retrieves pagination information from the `pagination` top-level element in the response.  Expected format is as follows:
+- `default` or `page` - This style uses page style offsets params to identify the next page.
+- `offset` or `style1` - This style retrieves pagination information by default from the `pagination` top-level element in the response.  Expected format is as follows:
     ```json
     "pagination": {
         "total": 136,
@@ -277,8 +298,14 @@ There are additional response styles supported as follows.
         "offset": 2
     }
     ```
-  The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as total and offset to calculate the next token value.
+  The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as ( `total` or `count` ) and offset to calculate the next token value.
 
+  It is expected that this API Response Style will be used with request style of `offset_paginator` or `style1`.
+  - The `next_page_token_jsonpath` can be used to provide a JSONPath location to the pagination location e.g. `'$.metadata.resultset'`. Default `pagination` from the tap-level element in the response.
+- `header_link` - This style parses the next page link in the Header Response. It is expected that this response will be used with an appropriate request style e.g. `restapi_header_link_paginator`.
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
+  - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `per_page`.
+  - `pagination_results_limit` - Restricts the total number of records returned from the API. Default None i.e. no limit.
 - `hateoas_body` - This style requires a well crafted `next_page_token_path` configuration 
   parameter to retrieve the request parameters from the GET request response for a subsequent request. The following example extracts the URL for the next pagination page.
     ```json

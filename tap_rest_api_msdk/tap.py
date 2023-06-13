@@ -304,7 +304,7 @@ class TapRestApiMsdk(Tap):
         th.Property(
             "next_page_token_path",
             th.StringType,
-            default="$.next_page",
+            default=None,
             required=False,
             description="a jsonpath string representing the path to the 'next page' "
             "token. Defaults to `$.next_page`",
@@ -331,6 +331,27 @@ class TapRestApiMsdk(Tap):
             default=None,
             required=False,
             description="the size of each page in records. Defaults to None",
+        ),
+        th.Property(
+            "pagination_results_limit",
+            th.IntegerType,
+            default=None,
+            required=False,
+            description="limits the max number of records. Defaults to None",
+        ),
+        th.Property(
+            "pagination_next_page_param",
+            th.StringType,
+            default=None,
+            required=False,
+            description="The name of the param that indicates the page/offset. Defaults to None",
+        ),
+        th.Property(
+            "pagination_limit_per_page_param",
+            th.StringType,
+            default=None,
+            required=False,
+            description="The name of the param that indicates the limit/per_page. Defaults to None",
         ),
     )
 
@@ -443,10 +464,13 @@ class TapRestApiMsdk(Tap):
                     ),
                     replication_key=replication_key,
                     except_keys=except_keys,
-                    next_page_token_path=self.config["next_page_token_path"],
+                    next_page_token_path=self.config.get("next_page_token_path"),
                     pagination_request_style=self.config["pagination_request_style"],
                     pagination_response_style=self.config["pagination_response_style"],
                     pagination_page_size=self.config.get("pagination_page_size"),
+                    pagination_results_limit=self.config.get("pagination_results_limit"),
+                    pagination_next_page_param=self.config.get("pagination_next_page_param"),
+                    pagination_limit_per_page_param=self.config.get("pagination_limit_per_page_param"),
                     schema=schema,
                     start_date=start_date,
                     search_parameter=search_parameter,
@@ -496,12 +520,14 @@ class TapRestApiMsdk(Tap):
         if r.ok:
             records = extract_jsonpath(records_path, input=r.json())
         else:
+            self.logger.error(f"Error Connecting, message = {r.text}")
             raise ValueError(r.text)
 
         builder = SchemaBuilder()
         builder.add_schema(th.PropertiesList().to_dict())
         for i, record in enumerate(records):
             if type(record) is not dict:
+                self.logger.error("Input must be a dict object.")
                 raise ValueError("Input must be a dict object.")
 
             flat_record = flatten_json(record, except_keys)
@@ -564,6 +590,7 @@ class TapRestApiMsdk(Tap):
                 token=self.config.get('bearer_token', ''),
             )
         else:
+            self.logger.error(f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token.")
             raise ValueError(
                 f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token."
             )

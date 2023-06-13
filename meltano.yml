@@ -20,6 +20,12 @@ plugins:
           kind: string
         - name: pagination_page_size
           kind: integer
+        - name: pagination_results_limit
+          kind: integer
+        - name: pagination_next_page_param
+          kind: string
+        - name: pagination_limit_per_page_param
+          kind: string
         - name: streams
           kind: array
         - name: path

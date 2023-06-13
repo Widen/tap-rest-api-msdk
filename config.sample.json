@@ -1,5 +1,5 @@
 {
-    "pagination_request_style": "hateoas_body",
+    "pagination_request_style": "jsonpath_paginator",
     "pagination_response_style": "hateoas_body",
     "api_url": "https://myexample_fhir_api_url/base_folder",
     "pagination_page_size": 100,
