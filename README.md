@@ -128,13 +128,13 @@ Parameters that appear at the stream-level will overwrite their top-level
 counterparts except where noted in the stream-level params. Otherwise, the values
 provided at the top-level will be the default values for each stream.:
 - `api_url`: required: the base url/endpoint for the desired api.
-- `pagination_request_style`: optional: style for requesting pagination, defaults to `default`, see Pagination below.
-- `pagination_response_style`: optional: style of pagination results, defaults to `default`, see Pagination below.
+- `pagination_request_style`: optional: style for requesting pagination, defaults to `default` which is the `jsonpath_paginator`, see Pagination below.
+- `pagination_response_style`: optional: style of pagination results, defaults to `default` which is the `page` style response, see Pagination below.
 - `pagination_page_size`: optional: limit for size of page, defaults to None.
 - `pagination_results_limit`: optional: limits the max number of records. Note: Will cause an exception if the limit is hit (except for the `restapi_header_link_paginator`). This should be used for development purposes to restrict the total number of records returned by the API. Defaults to None.
 - `pagination_next_page_param`: optional: The name of the param that indicates the page/offset. Defaults to None.
 - `pagination_limit_per_page_param`: optional: The name of the param that indicates the limit/per_page. Defaults to None.
-- `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `$.next_page`.
+- `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `'$.next_page'` for the `jsonpath_paginator` paginator only otherwise None.
 - `streams`: required: a list of objects that contain the configuration of each stream. See stream-level params below.
 - `path`: optional: see stream-level params below.
 - `params`: optional: see stream-level params below.
@@ -268,12 +268,12 @@ The default response style for pagination is described below:
 ### Additional Request / Paginator Styles
 There are additional request styles supported as follows for pagination.
 - `jsonpath_paginator` or `default` - This style obtains the token for the next page from a specific location in the response body via JSONPath notation. In a number of situations the `jsonpath_paginator` is a good alternative to the `hateoas_paginator`.
-  - `next_page_token_path` - The jsonpath to next page token. Example: `"$['@odata.nextLink']"`, this locates the token returned via the Microsoft Graph API. Default `'$.next_page'`.
+  - `next_page_token_path` - The jsonpath to next page token. Example: `"$['@odata.nextLink']"`, this locates the token returned via the Microsoft Graph API. Default `'$.next_page'` for the `jsonpath_paginator` paginator only otherwise None.
 - `offset_paginator` or `style1` - This style uses URL parameters named offset and limit
   - `offset` is calculated from the previous response, or not set if there is no previous response
   - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
   - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `limit`.
-  - `next_page_token_path` - Use to locate an appropriate link in the response. Default None. Example, jsonpath to get the offset from the NOAA API `'$.metadata.resultset'`.
+  - `next_page_token_path` - Used to locate an appropriate link in the response. Default None - but looks in the `pagination` section of the JSON response by default. Example, jsonpath to get the offset from the NOAA API `'$.metadata.resultset'`.
 - `simple_header_paginator` - This style uses links in the Header Response to locate the next page. Example the `x-next-page` link used by the Gitlab API.
 - `header_link_paginator` - This style uses the default header link paginator from the Meltano SDK.
 - `restapi_header_link_paginator` - This style is a variant on the header_link_paginator. It supports the ability to read from GitHub API.
@@ -356,7 +356,111 @@ There are additional response styles supported as follows.
   "records_path": "$.entry[*].resource"
   ```
 
+## Example settings for different API's
+
+This section provides examples of settings for accessing different API's. The tap configuration examples are provide in the form of environment variables. You could easily provide a configuration file [config.json](config.sample.json) instead of environment variables.
+
+Where config values have with `<removed .. >` replace the text with your Authentication and API config.
+
+### Microsoft Graph API v1.0
+
+This example uses the `jsonpath paginator`. In this example, it requires a Microsoft Azure AD admin to register an APP to obtain an OAuth Token to perform an OAuth flow with the Microsoft Graph API. The details below may be different based on your setup, adjust accordingly.
+
+Result: Two streamed datasets, one `whoami` a simple json response about yourself, two a sharepoint list `my_sharepoint_list`.
+
+```
+# Access MSOFFICE objects via the GraphAPI
+export TAP_REST_API_MSDK_API_URL=https://graph.microsoft.com
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="jsonpath_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="hateoas_body"
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH="$['@odata.nextLink']"
+export TAP_REST_API_MSDK_START_DATE="2001-01-01T00:00:00.00+12:00"
+export TAP_REST_API_MSDK_AUTH_METHOD="oauth"
+export TAP_REST_API_MSDK_USERNAME="<removed place in UPN/email address>"
+export TAP_REST_API_MSDK_PASSWORD="<removed place in password>"
+export TAP_REST_API_MSDK_GRANT_TYPE="password"
+export TAP_REST_API_MSDK_ACCESS_TOKEN_URL="https://login.microsoftonline.com/<removed place in Azure AAD APP ID>/oauth2/v2.0/token"
+export TAP_REST_API_MSDK_CLIENT_ID="<removed place in OAuth Client ID>"
+export TAP_REST_API_MSDK_CLIENT_SECRET="<removed place in OAuth Client Secret>"
+export TAP_REST_API_MSDK_SCOPE="<removed place in client scope url e.g. https://graph.microsoft.com/user.read>"
+export TAP_REST_API_MSDK_STREAMS='[{"name": "whoami", "path": "/v1.0/me", "primary_keys": ["id"]},{"name": "my_sharepoint_list", "path": "/v1.0/sites/<removed place in SharePoint Site ID>/Lists/<removed place in SharePoint list id>/items/?expand=columns,items(expand=fields)", "primary_keys": ["id"], "records_path": "$.value[*].fields"}]'
+```
+
+### Gitlab API
+
+This example uses the `simple header paginator` and returns 50 records from the Gitlab API for Projects. Note: There is an exception raised due to the 50 record limit - this is an example hence the limit.
+
+```
+# Access Gitlab projects via the GitLab API
+export TAP_REST_API_MSDK_API_URL=https://gitlab.com/api/v4/projects
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="simple_header_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESULTS_LIMIT=50
+export TAP_REST_API_MSDK_STREAMS='[{"name": "gitlab_projects", "primary_keys": ["id"]}]'
+```
+
+You could authenticate to Gitlab using a Personal Access Token (PAT) by adding this config.
+```
+export TAP_REST_API_MSDK_HEADERS='{"Authorization": "Bearer <removed PAT bearer token>"}'
+```
+
+### GitHub API
+
+This example uses the `headerlink paginator` and returns approximately 250 records from the GitHub API for Projects.
+
+```
+# Access GitHub users via the GitHub API
+export TAP_REST_API_MSDK_API_URL=https://api.github.com/users
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="restapi_header_link_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="header_link"
+export TAP_REST_API_MSDK_PAGINATION_PAGE_SIZE=50
+export TAP_REST_API_MSDK_PAGINATION_RESULTS_LIMIT=250
+export TAP_REST_API_MSDK_STREAMS='[{"name": "github_users", "primary_keys": ["id"]}]'
+```
+
+You could authenticate to GitHub using a Personal Access Token (PAT) by adding this config.
+```
+export TAP_REST_API_MSDK_HEADERS='{"Authorization": "Bearer <removed PAT bearer token>"}'
+```
+
+### FHIR API
+
+This example uses the `jsonpath paginator` to access a FHIR API. It uses the `hateoas response style` to process the next tokens.
+
+This particular configuration will do an intial load of all data for a given resource defined in the `streams` config from the 01-Jan-2001. It will in subsequent runs incrementally pull changed data based on the lastUpdated timestamp by searching for records greater than the highest last updated timestamp. In this example the PlanDefinition FHIR resource is being extracted.
+
+You will need appropriate OAuth Token details provided by the Administrator of the API.
+
+```
+export TAP_REST_API_MSDK_API_URL=<remove put in the FHIR API url>
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="jsonpath_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="hateoas_body"
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH="$.link[?(@.relation=='next')].url"
+export TAP_REST_API_MSDK_START_DATE="2001-01-01T00:00:00.00+12:00"
+export TAP_REST_API_MSDK_AUTH_METHOD="oauth"
+export TAP_REST_API_MSDK_GRANT_TYPE="client_credentials"
+export TAP_REST_API_MSDK_ACCESS_TOKEN_URL="https://login.microsoftonline.com/<removed place in Azure AAD APP ID>/oauth2/v2.0/token"
+export TAP_REST_API_MSDK_CLIENT_ID="<removed place in OAuth Client ID>"
+export TAP_REST_API_MSDK_CLIENT_SECRET="<removed place in OAuth Client Secret>"
+export TAP_REST_API_MSDK_SCOPE="<removed place in client scope url>"
+export TAP_REST_API_MSDK_STREAMS='[{"name":"plan_definition","path":"/PlanDefinition","primary_keys":["id"],"records_path":"$.entry[*].resource","replication_key":"meta_lastUpdated","search_parameter":"_lastUpdated","search_prefix":"gt"}]'
+```
+
+### NOAA API Example
+
+This example uses the `offset paginator` to access the NOAA API to return location categories. In this example the offset tokens are not in the default location of `pagination` so the `next_page_token_path` is set to the NOAA API offset location in the json response i.e. `'$.metadata.resultset'`. This example also sets a limit parameter in the `streams` to only return 5 records at a time to prove the pagination is working.
+
+```
+# Access Locations Categories objects via the NOAA API
+export TAP_REST_API_MSDK_API_URL=https://www.ncei.noaa.gov/cdo-web/api/v2
+export TAP_REST_API_MSDK_HEADERS='{"token": "<enter NOAA token>"}'
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH='$.metadata.resultset'
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="offset_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="style1"
+export TAP_REST_API_MSDK_STREAMS='[{"name": "locationcategories", "params": {"limit": "5"}, "path": "/locationcategories", "primary_keys": ["id"], "records_path": "$.results[*]"}]'
+```
+
 ## Usage
+
 
 You can easily run `tap-rest-api-msdk` by itself or in a pipeline using [Meltano](www.meltano.com).
 
