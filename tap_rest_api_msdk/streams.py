@@ -8,7 +8,7 @@ import email.utils
 from singer_sdk.pagination import SinglePagePaginator, BaseOffsetPaginator, BaseHATEOASPaginator, JSONPathPaginator, HeaderLinkPaginator, SimpleHeaderPaginator, BasePageNumberPaginator
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from tap_rest_api_msdk.client import RestApiStream
-from tap_rest_api_msdk.utils import flatten_json, compress_dict
+from tap_rest_api_msdk.utils import flatten_json, unnest_dict
 from urllib.parse import urlparse, parse_qsl, parse_qs
 
 
@@ -68,7 +68,7 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
         else:
             pagination = response.json().get("pagination", None)
         if pagination:
-            pagination = compress_dict(pagination)
+            pagination = unnest_dict(pagination)
 
         if pagination and all(x in pagination for x in ["offset", "limit"]):
             record_limit = pagination.get(self.pagination_total_limit_param,0)
