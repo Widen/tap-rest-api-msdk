@@ -26,6 +26,8 @@ plugins:
           kind: string
         - name: pagination_limit_per_page_param
           kind: string
+        - name: pagination_total_limit_param
+          kind: string
         - name: streams
           kind: array
         - name: path

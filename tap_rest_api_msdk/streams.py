@@ -8,7 +8,7 @@ import email.utils
 from singer_sdk.pagination import SinglePagePaginator, BaseOffsetPaginator, BaseHATEOASPaginator, JSONPathPaginator, HeaderLinkPaginator, SimpleHeaderPaginator, BasePageNumberPaginator
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from tap_rest_api_msdk.client import RestApiStream
-from tap_rest_api_msdk.utils import flatten_json
+from tap_rest_api_msdk.utils import flatten_json, compress_dict
 from urllib.parse import urlparse, parse_qsl, parse_qs
 
 
@@ -44,10 +44,12 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
         self,
         *args,
         jsonpath: str = None,
+        pagination_total_limit_param: str,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self._jsonpath = jsonpath
+        self.jsonpath = jsonpath
+        self.pagination_total_limit_param = pagination_total_limit_param
 
     def has_more(self, response: requests.Response):
         """Return True if there are more pages to fetch.
@@ -61,13 +63,15 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
             Whether there are more pages to fetch.
         """
         
-        if self._jsonpath:
-            pagination = next(extract_jsonpath(self._jsonpath, response.json()), None)
+        if self.jsonpath:
+            pagination = next(extract_jsonpath(self.jsonpath, response.json()), None)
         else:
             pagination = response.json().get("pagination", None)
+        if pagination:
+            pagination = compress_dict(pagination)
 
         if pagination and all(x in pagination for x in ["offset", "limit"]):
-            record_limit = pagination.get("total",pagination.get("count",0))
+            record_limit = pagination.get(self.pagination_total_limit_param,0)
             records_read = pagination["offset"] + pagination["limit"]
             if records_read <= record_limit:
                 return True
@@ -203,6 +207,7 @@ class DynamicStream(RestApiStream):
         pagination_results_limit: Optional[int] = None,
         pagination_next_page_param: Optional[str] = None,
         pagination_limit_per_page_param: Optional[str] = None,
+        pagination_total_limit_param: Optional[str] = None,
         start_date: Optional[datetime] = None,
         search_parameter: Optional[str] = None,
         search_prefix: Optional[str] = None,
@@ -227,6 +232,7 @@ class DynamicStream(RestApiStream):
             pagination_results_limit: see tap.py
             pagination_next_page_param: see tap.py
             pagination_limit_per_page_param: see tap.py
+            pagination_total_limit_param: see tap.py
             start_date: see tap.py
             search_parameter: see tap.py
             search_prefix: see tap.py
@@ -261,6 +267,7 @@ class DynamicStream(RestApiStream):
         self.pagination_results_limit = pagination_results_limit
         self.pagination_next_page_param = pagination_next_page_param
         self.pagination_limit_per_page_param = pagination_limit_per_page_param
+        self.pagination_total_limit_param = pagination_total_limit_param
         self.start_date = start_date
         self.search_parameter = search_parameter
         self.search_prefix = search_prefix
@@ -340,7 +347,8 @@ class DynamicStream(RestApiStream):
         elif self.pagination_request_style == 'style1' or self.pagination_request_style == 'offset_paginator':
             return RestAPIOffsetPaginator(start_value=1,
                                           page_size=self.pagination_page_size,
-                                          jsonpath=self.next_page_token_jsonpath)
+                                          jsonpath=self.next_page_token_jsonpath,
+                                          pagination_total_limit_param=self.pagination_total_limit_param)
         elif self.pagination_request_style == 'hateoas_paginator':
             return BaseHATEOASPaginator()
         elif self.pagination_request_style == 'single_page_paginator':

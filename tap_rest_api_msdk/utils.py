@@ -64,3 +64,12 @@ def flatten_json(obj: dict, except_keys: Optional[list] = None) -> dict:
 
     flatten(obj, exception_keys=except_keys)
     return out
+    
+def compress_dict(dic: dict):
+    result ={}
+    for k,v in dic.items():
+        if isinstance(v, dict):
+            compress_dict(v)
+        else:
+            result.update({k:v})
+    return result

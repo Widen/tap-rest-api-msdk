@@ -353,6 +353,13 @@ class TapRestApiMsdk(Tap):
             required=False,
             description="The name of the param that indicates the limit/per_page. Defaults to None",
         ),
+        th.Property(
+            "pagination_total_limit_param",
+            th.StringType,
+            default="total",
+            required=False,
+            description="The name of the param that indicates the total limit e.g. total, count. Defaults to total",
+        ),
     )
 
     # add common properties to top-level properties
@@ -471,6 +478,7 @@ class TapRestApiMsdk(Tap):
                     pagination_results_limit=self.config.get("pagination_results_limit"),
                     pagination_next_page_param=self.config.get("pagination_next_page_param"),
                     pagination_limit_per_page_param=self.config.get("pagination_limit_per_page_param"),
+                    pagination_total_limit_param=self.config.get("pagination_total_limit_param"),
                     schema=schema,
                     start_date=start_date,
                     search_parameter=search_parameter,

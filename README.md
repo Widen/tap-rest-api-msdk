@@ -51,6 +51,8 @@ plugins:
           kind: string
         - name: pagination_limit_per_page_param
           kind: string
+        - name: pagination_total_limit_param
+          kind: string
         - name: streams
           kind: array
         - name: name
@@ -134,6 +136,7 @@ provided at the top-level will be the default values for each stream.:
 - `pagination_results_limit`: optional: limits the max number of records. Note: Will cause an exception if the limit is hit (except for the `restapi_header_link_paginator`). This should be used for development purposes to restrict the total number of records returned by the API. Defaults to None.
 - `pagination_next_page_param`: optional: The name of the param that indicates the page/offset. Defaults to None.
 - `pagination_limit_per_page_param`: optional: The name of the param that indicates the limit/per_page. Defaults to None.
+- `pagination_total_limit_param`: optional: The name of the param that indicates the total limit e.g. total, count. Defaults to total
 - `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `'$.next_page'` for the `jsonpath_paginator` paginator only otherwise None.
 - `streams`: required: a list of objects that contain the configuration of each stream. See stream-level params below.
 - `path`: optional: see stream-level params below.
@@ -273,6 +276,7 @@ There are additional request styles supported as follows for pagination.
   - `offset` is calculated from the previous response, or not set if there is no previous response
   - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
   - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `limit`.
+  - `pagination_total_limit_param` - The name of the param that indicates the total limit e.g. total, count. Defaults to total
   - `next_page_token_path` - Used to locate an appropriate link in the response. Default None - but looks in the `pagination` section of the JSON response by default. Example, jsonpath to get the offset from the NOAA API `'$.metadata.resultset'`.
 - `simple_header_paginator` - This style uses links in the Header Response to locate the next page. Example the `x-next-page` link used by the Gitlab API.
 - `header_link_paginator` - This style uses the default header link paginator from the Meltano SDK.
@@ -456,6 +460,7 @@ export TAP_REST_API_MSDK_HEADERS='{"token": "<enter NOAA token>"}'
 export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH='$.metadata.resultset'
 export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="offset_paginator"
 export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="style1"
+export TAP_REST_API_MSDK_PAGINATION_TOTAL_LIMIT_PARAM="count"
 export TAP_REST_API_MSDK_STREAMS='[{"name": "locationcategories", "params": {"limit": "5"}, "path": "/locationcategories", "primary_keys": ["id"], "records_path": "$.results[*]"}]'
 ```
 
