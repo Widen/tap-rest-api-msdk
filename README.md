@@ -464,13 +464,13 @@ export TAP_REST_API_MSDK_PAGINATION_TOTAL_LIMIT_PARAM="count"
 export TAP_REST_API_MSDK_STREAMS='[{"name": "locationcategories", "params": {"limit": "5"}, "path": "/locationcategories", "primary_keys": ["id"], "records_path": "$.results[*]"}]'
 ```
 
-### DBT API Example
+### dbt Cloud API Example
 
-This example uses the `offset paginator` to access the DBT API to return location categories. In this example the offset tokens are not in the default location of `pagination` so the `next_page_token_path` is set to the DBT API offset location in the json response i.e. `'$.metadata.resultset'`. This example also sets a limit parameter in the `streams` to only return 5 records at a time to prove the pagination is working.
+This example uses the `offset paginator` to access the dbt Cloud API to return location categories. In this example the offset tokens are not in the default location of `pagination` so the `next_page_token_path` is set to the dbt API offset location in the json response i.e. `'$.extra'`. This example also sets the streams record_path to `"$.data[*]"` which is the location of the data.
 
 ```
-# Access Locations Categories objects via the DBT Cloud API
-# Access Gitlab objects via the DBT Cloud API
+# Access Locations Categories objects via the dbt Cloud API
+# Access Gitlab objects via the dbt Cloud API
 export TAP_REST_API_MSDK_API_URL=https://<removed your url>.getdbt.com/api/v2/accounts/<removed account id>
 export TAP_REST_API_MSDK_HEADERS='{"Authorization": "Bearer <removed place in bearer token>"}'
 export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH='$.extra'

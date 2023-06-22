@@ -23,6 +23,8 @@ requests = "^2.25.1"
 singer-sdk = "^0.26.0"
 genson = "^1.2.2"
 atomicwrites = "^1.4.0"
+requests-aws4auth = "^1.2.3"
+boto3 = "^1.26.156"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"

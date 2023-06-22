@@ -12,6 +12,7 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.authenticators import APIAuthenticatorBase, APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
+from tap_rest_api_msdk.client import AWSConnectClient, AWS4Auth
 
 class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
 
@@ -198,8 +199,9 @@ class TapRestApiMsdk(Tap):
             description="The method of authentication used by the API. Supported options include "
             "oauth: for OAuth2 authentication, basic: Basic Header authorization - base64-encoded "
             "username + password config items, api_key: for API Keys in the header e.g. X-API-KEY,"
-            " bearer_token: for Bearer token authorization. Defaults to no_auth which will take "
-            "authentication parameters passed via the headers config."
+            "bearer_token: for Bearer token authorization, aws: for AWS Authentication."
+            "Defaults to no_auth which will take authentication parameters passed via the headers"
+            "config."
         ),
         th.Property(
             "api_keys",
@@ -300,6 +302,20 @@ class TapRestApiMsdk(Tap):
             description="Used for OAuth2 authentication method. This optional setting is a "
             "timer for the expiration of a token in seconds. If not set the OAuth will use "
             "the default expiration set in the token by the authorization server."
+        ),
+        th.Property(
+            "aws_credentials",
+            th.ObjectType(),
+            default=None,
+            required=False,
+            description="An object of aws credentials to authenticate to access AWS services."
+            "This example is to access the AWS OpenSearch service."
+            "Example: { ""aws_access_key_id"": ""my_aws_key_id"", "
+            "           ""aws_secret_access_key"": ""my_aws_secret_access_key"", "
+            "           ""aws_region"": ""us-east-1"", "
+            "           ""aws_service"": ""es"", "
+            "           ""use_signed_credentials"": true} "
+            
         ),
         th.Property(
             "next_page_token_path",
@@ -517,14 +533,27 @@ class TapRestApiMsdk(Tap):
         # todo: this request format is not very robust
 
         auth_method = self.config.get('auth_method', '')
-        if auth_method and not auth_method == 'no_auth':
+        self.aws_connection = None
+        self.aws_auth = None
+
+        if auth_method == 'aws':
+            # Adding AWS Authentication auth= to the request
+            self.aws_connection = AWSConnectClient(connection_config=self.config.get("aws_credentials",None))
+            if self.aws_connection.aws_auth:
+                self.aws_auth = self.aws_connection.aws_auth
+            authenticator = self.authenticator
+
+        elif auth_method and not auth_method == 'no_auth':
             # Initializing Authenticator required in TAP for to dynamically discover schema
             authenticator = self.authenticator
             if authenticator:
                 headers.update(authenticator.auth_headers or {})
                 params.update(authenticator.auth_params or {})
 
-        r = requests.get(self.config["api_url"] + path, params=params, headers=headers)
+        if self.aws_auth:
+            r = requests.get(self.config["api_url"] + path, auth=self.aws_auth, params=params, headers=headers)
+        else:
+            r = requests.get(self.config["api_url"] + path, params=params, headers=headers)
         if r.ok:
             records = extract_jsonpath(records_path, input=r.json())
         else:
@@ -596,6 +625,39 @@ class TapRestApiMsdk(Tap):
             return BearerTokenAuthenticator(
                 stream=self,
                 token=self.config.get('bearer_token', ''),
+            )
+        elif auth_method == "aws":
+            ### TODO: Start - Debugging code to delete
+            x = AWS4Auth(
+                self.aws_connection.credentials.access_key,
+                self.aws_connection.credentials.secret_key,
+                self.aws_connection.region,
+                self.aws_connection.aws_service,
+                aws_session=self.aws_connection.credentials.token
+                ,stream=self
+            )
+            
+            r = requests.get(self.config["api_url"] + "/careplan/_search", auth=x, params={}, headers={})
+            records = None
+            if r.ok:
+                records = r.text
+            else:
+                self.logger.error(f"Error Connecting, message = {r.text}")
+                raise ValueError(r.text)
+            
+            self.logger.info(f"{records=}")
+            self.logger.info(f"{x=}, the directory is {x.__dir__()=}")
+            self.logger.info(f"{x.access_id=}, {x.region=}")
+            self.logger.info(f"{x.default_include_headers=}")
+            self.logger.info(f"{x.include_hdrs=}")
+            self.logger.info(f"{self.__dir__()=}")
+            ### TODO: End - Debugging code to delete
+            return AWS4Auth(
+                self.aws_connection.credentials.access_key,
+                self.aws_connection.credentials.secret_key,
+                self.aws_connection.region,
+                self.aws_connection.aws_service,
+                aws_session=self.aws_connection.credentials.token
             )
         else:
             self.logger.error(f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token.")
