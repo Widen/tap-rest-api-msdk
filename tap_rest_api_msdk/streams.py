@@ -11,6 +11,16 @@ from tap_rest_api_msdk.client import RestApiStream
 from tap_rest_api_msdk.utils import flatten_json, unnest_dict
 from urllib.parse import urlparse, parse_qsl, parse_qs
 
+# import logging
+# import http.client
+
+# http.client.HTTPConnection.debuglevel = 1
+
+# logging.basicConfig()
+# logging.getLogger().setLevel(logging.DEBUG)
+# requests_log = logging.getLogger("requests.packages.urllib3")
+# requests_log.setLevel(logging.DEBUG)
+# requests_log.propagate = True
 
 class RestAPIBasePageNumberPaginator(BasePageNumberPaginator):
     def __init__(
@@ -196,6 +206,7 @@ class DynamicStream(RestApiStream):
         path: str,
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
+        auth: Optional[Any] = None, # TODO: remove when refactored into SDK
         primary_keys: Optional[list] = None,
         replication_key: Optional[str] = None,
         except_keys: Optional[list] = None,
@@ -220,6 +231,7 @@ class DynamicStream(RestApiStream):
             path: see tap.py
             params: see tap.py
             headers: see tap.py
+            auth: Optional http requests auth set by Authenticator in tap.py : TODO remove when refactored
             primary_keys: see tap.py
             replication_key: see tap.py
             except_keys: see tap.py
@@ -247,6 +259,7 @@ class DynamicStream(RestApiStream):
         self.path = path
         self.params = params
         self.headers = headers
+        self.http_auth = auth  # TODO: remove when refactored into SDK
         self.primary_keys = primary_keys
         self.replication_key = replication_key
         self.except_keys = except_keys
@@ -323,6 +336,48 @@ class DynamicStream(RestApiStream):
                 headers[k] = v
 
         return headers
+
+    # TODO: This SDK function has been included and overloaded because we need to
+    # pass in auth to the request. Would like this as an enhancement to the SDK.
+    #
+    # Would like to remove this function to have a vanilla implementation.
+    def prepare_request(
+        self,
+        context: Optional[dict], # Replaced to remove Type Error
+        next_page_token: Optional[Any] # Replaced to remove Type Error
+#        context: dict | None,
+#        next_page_token: _TToken | None,
+    ) -> requests.PreparedRequest:
+        """Prepare a request object for this stream.
+
+        If partitioning is supported, the `context` object will contain the partition
+        definitions. Pagination information can be parsed from `next_page_token` if
+        `next_page_token` is not None.
+
+        Args:
+            context: Stream partition or context dictionary.
+            next_page_token: Token, page number or any request argument to request the
+                next page of data.
+
+        Returns:
+            Build a request with the stream's URL, path, query parameters,
+            HTTP headers and authenticator.
+        """
+        http_method = self.rest_method
+        url: str = self.get_url(context)
+        params: dict | str = self.get_url_params(context, next_page_token)
+        request_data = self.prepare_request_payload(context, next_page_token)
+        headers = self.http_headers
+        auth = self.http_auth  # Extended Meltano SDK with this line
+
+        return self.build_prepared_request(
+            method=http_method,
+            url=url,
+            auth=auth, # Extended Meltano SDK with this line
+            params=params,
+            headers=headers,
+            json=request_data,
+        )
 
     def get_new_paginator(self):
         """Return the requested paginator required to retrieve all data from the API.

@@ -12,8 +12,9 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.authenticators import APIAuthenticatorBase, APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
-from tap_rest_api_msdk.client import AWSConnectClient, AWS4Auth
+from tap_rest_api_msdk.client import AWSConnectClient, AWSAuthenticator
 
+# TODO: Refactor and move into client.py from tap.py
 class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
 
     @property
@@ -83,6 +84,10 @@ class TapRestApiMsdk(Tap):
 
     # Required for Authentication in tap.py
     tap_name = "tap-rest-api-msdk"
+
+    # TODO: Remove when refactored into SDK
+    # Initialise the http auth    
+    http_auth = None
 
     common_properties = th.PropertiesList(
         th.Property(
@@ -481,6 +486,7 @@ class TapRestApiMsdk(Tap):
                     path=path,
                     params=params,
                     headers=headers,
+                    auth=self.http_auth, # TODO: Remove when refactored into SDK
                     records_path=records_path,
                     primary_keys=stream.get(
                         "primary_keys", self.config.get("primary_keys", [])
@@ -530,17 +536,16 @@ class TapRestApiMsdk(Tap):
             A schema for the stream.
 
         """
-        # todo: this request format is not very robust
+        # TODO: this request format is not very robust
 
         auth_method = self.config.get('auth_method', '')
         self.aws_connection = None
-        self.aws_auth = None
 
         if auth_method == 'aws':
             # Adding AWS Authentication auth= to the request
             self.aws_connection = AWSConnectClient(connection_config=self.config.get("aws_credentials",None))
             if self.aws_connection.aws_auth:
-                self.aws_auth = self.aws_connection.aws_auth
+                self.http_auth = self.aws_connection.aws_auth # TODO: Refactor when in SDK
             authenticator = self.authenticator
 
         elif auth_method and not auth_method == 'no_auth':
@@ -550,8 +555,8 @@ class TapRestApiMsdk(Tap):
                 headers.update(authenticator.auth_headers or {})
                 params.update(authenticator.auth_params or {})
 
-        if self.aws_auth:
-            r = requests.get(self.config["api_url"] + path, auth=self.aws_auth, params=params, headers=headers)
+        if self.http_auth:
+            r = requests.get(self.config["api_url"] + path, auth=self.http_auth, params=params, headers=headers)
         else:
             r = requests.get(self.config["api_url"] + path, params=params, headers=headers)
         if r.ok:
@@ -576,6 +581,7 @@ class TapRestApiMsdk(Tap):
         self.logger.debug(f"{builder.to_json(indent=2)}")
         return builder.to_schema()
 
+    # TODO: Refactor and move into client.py from tap.py
     @property
     def authenticator(self) -> APIAuthenticatorBase:
         """Calls an appropriate SDK Authentication method based on the the set auth_method.
@@ -626,38 +632,11 @@ class TapRestApiMsdk(Tap):
                 stream=self,
                 token=self.config.get('bearer_token', ''),
             )
+        # Using AWS Authenticator
         elif auth_method == "aws":
-            ### TODO: Start - Debugging code to delete
-            x = AWS4Auth(
-                self.aws_connection.credentials.access_key,
-                self.aws_connection.credentials.secret_key,
-                self.aws_connection.region,
-                self.aws_connection.aws_service,
-                aws_session=self.aws_connection.credentials.token
-                ,stream=self
-            )
-            
-            r = requests.get(self.config["api_url"] + "/careplan/_search", auth=x, params={}, headers={})
-            records = None
-            if r.ok:
-                records = r.text
-            else:
-                self.logger.error(f"Error Connecting, message = {r.text}")
-                raise ValueError(r.text)
-            
-            self.logger.info(f"{records=}")
-            self.logger.info(f"{x=}, the directory is {x.__dir__()=}")
-            self.logger.info(f"{x.access_id=}, {x.region=}")
-            self.logger.info(f"{x.default_include_headers=}")
-            self.logger.info(f"{x.include_hdrs=}")
-            self.logger.info(f"{self.__dir__()=}")
-            ### TODO: End - Debugging code to delete
-            return AWS4Auth(
-                self.aws_connection.credentials.access_key,
-                self.aws_connection.credentials.secret_key,
-                self.aws_connection.region,
-                self.aws_connection.aws_service,
-                aws_session=self.aws_connection.credentials.token
+            return AWSAuthenticator(
+                stream=self,
+                http_auth=self.http_auth, # TODO: Refactor when in SDK, parameter doesn't do anything at the moment.
             )
         else:
             self.logger.error(f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token.")

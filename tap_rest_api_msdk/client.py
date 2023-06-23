@@ -5,10 +5,32 @@ from requests_aws4auth import AWS4Auth
 import boto3
 from pathlib import Path
 from typing import Any
+from singer_sdk.authenticators import APIAuthenticatorBase
+import requests
 
 from singer_sdk.streams import RESTStream
 
 SCHEMAS_DIR = Path(__file__).parent / Path("./schemas")
+
+class AWSAuthenticator(APIAuthenticatorBase):
+  
+    def __init__(
+        self,
+        stream: RESTStream,
+        http_auth = None,
+    ) -> None:
+        """Create a new AWSAuthenticator extending the APIAuthenticatorBase.
+
+        If auths is provided, it will be added to the PreparedRequest
+        for the stream.
+
+        Args:
+            stream: The stream instance to use with this authenticator.
+            auth: AWS4Auth object.
+        """
+        super().__init__(stream=stream)
+
+        # TODO: Add logic to set stream.http_auth
 
 
 class RestApiStream(RESTStream):
