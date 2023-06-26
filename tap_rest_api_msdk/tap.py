@@ -9,85 +9,17 @@ from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
-from singer_sdk.authenticators import APIAuthenticatorBase, APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
-from tap_rest_api_msdk.client import AWSConnectClient, AWSAuthenticator
-
-# TODO: Refactor and move into client.py from tap.py
-class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
-
-    @property
-    def oauth_request_body(self) -> dict:
-        """Build up a list of OAuth2 parameters to use depending
-        on what configuration items have been set and the type of OAuth
-        flow set by the grant_type.
-        """
-
-        client_id = self.config.get('client_id')
-        client_secret = self.config.get('client_secret')
-        username = self.config.get('username')
-        password = self.config.get('password')
-        refresh_token = self.config.get('refresh_token')
-        grant_type = self.config.get('grant_type')
-        scope = self.config.get('scope')
-        redirect_uri = self.config.get('redirect_uri')
-        oauth_extras = self.config.get('oauth_extras')
-
-        oauth_params = {}
-
-        # Test mandatory parameters based on grant_type
-        if grant_type:
-            oauth_params['grant_type'] = grant_type
-        else:
-            raise ValueError("Missing grant type for OAuth Token.")
-
-        if grant_type == 'client_credentials':
-            if not (client_id and client_secret):
-                raise ValueError(
-                    "Missing either client_id or client_secret for 'client_credentials' grant_type."
-                )
-
-        if grant_type == 'password':
-            if not (username and password):
-                raise ValueError("Missing either username or password for 'password' grant_type.")
-
-        if grant_type == 'refresh_token':
-            if not refresh_token:
-                raise ValueError("Missing either refresh_token for 'refresh_token' grant_type.")
-
-        # Add parameters if they are set
-        if scope:
-            oauth_params['scope'] = scope
-        if client_id:
-            oauth_params['client_id'] = client_id
-        if client_secret:
-            oauth_params['client_secret'] = client_secret
-        if username:
-            oauth_params['username'] = username
-        if password:
-            oauth_params['password'] = password
-        if refresh_token:
-            oauth_params['refresh_token'] = refresh_token
-        if redirect_uri:
-            oauth_params['redirect_uri'] = redirect_uri
-        if oauth_extras:
-            for k, v in oauth_extras.items():
-                oauth_params[k] = v
-
-        return oauth_params
+from tap_rest_api_msdk.auth import AWSConnectClient, select_authenticator
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
 
     name = "tap-rest-api-msdk"
 
-    # Required for Authentication in tap.py
-    tap_name = "tap-rest-api-msdk"
-
-    # TODO: Remove when refactored into SDK
-    # Initialise the http auth    
-    http_auth = None
+    # Required for Authentication in tap.py - function APIAuthenticatorBase
+    tap_name = name
 
     common_properties = th.PropertiesList(
         th.Property(
@@ -486,7 +418,6 @@ class TapRestApiMsdk(Tap):
                     path=path,
                     params=params,
                     headers=headers,
-                    auth=self.http_auth, # TODO: Remove when refactored into SDK
                     records_path=records_path,
                     primary_keys=stream.get(
                         "primary_keys", self.config.get("primary_keys", [])
@@ -520,6 +451,10 @@ class TapRestApiMsdk(Tap):
         headers: dict,
     ) -> Any:
         """Infer schema from the first records returned by api. Creates a Stream object.
+        
+        If auth_method is set, will call select_authenticator to obtain credentials
+        to issue a request to sample some records. The select_authenticator will
+        set the self.http_auth if required by the request authenticator.
 
         Args:
             records_path: required - see config_jsonschema.
@@ -538,27 +473,19 @@ class TapRestApiMsdk(Tap):
         """
         # TODO: this request format is not very robust
 
-        auth_method = self.config.get('auth_method', '')
-        self.aws_connection = None
+        # Initialise Variables
+        auth_method = self.config.get("auth_method", "")
+        self.http_auth = None
 
-        if auth_method == 'aws':
-            # Adding AWS Authentication auth= to the request
-            self.aws_connection = AWSConnectClient(connection_config=self.config.get("aws_credentials",None))
-            if self.aws_connection.aws_auth:
-                self.http_auth = self.aws_connection.aws_auth # TODO: Refactor when in SDK
-            authenticator = self.authenticator
-
-        elif auth_method and not auth_method == 'no_auth':
-            # Initializing Authenticator required in TAP for to dynamically discover schema
-            authenticator = self.authenticator
-            if authenticator:
+        if auth_method and not auth_method == "no_auth":
+            # Initializing Authenticator for authorisation to obtain a schema.
+            # Will set the self.http_auth if required by a given authenticator
+            authenticator = select_authenticator(self)
+            if hasattr(authenticator, "auth_headers"):
                 headers.update(authenticator.auth_headers or {})
                 params.update(authenticator.auth_params or {})
 
-        if self.http_auth:
-            r = requests.get(self.config["api_url"] + path, auth=self.http_auth, params=params, headers=headers)
-        else:
-            r = requests.get(self.config["api_url"] + path, params=params, headers=headers)
+        r = requests.get(self.config["api_url"] + path, auth=self.http_auth, params=params, headers=headers)
         if r.ok:
             records = extract_jsonpath(records_path, input=r.json())
         else:
@@ -580,66 +507,3 @@ class TapRestApiMsdk(Tap):
 
         self.logger.debug(f"{builder.to_json(indent=2)}")
         return builder.to_schema()
-
-    # TODO: Refactor and move into client.py from tap.py
-    @property
-    def authenticator(self) -> APIAuthenticatorBase:
-        """Calls an appropriate SDK Authentication method based on the the set auth_method.
-        If an auth_method is not provided, the tap will call the API using any settings from
-        the headers and params config.
-        Note: Each auth method requires certain configuration to be present see README.md
-        for each auth methods configuration requirements.
-
-        Raises:
-            ValueError: if the auth_method is unknown.
-
-        Returns:
-            A SDK Authenticator or None if no auth_method supplied.
-        """
-
-        auth_method = self.config.get('auth_method', "")
-        api_keys = self.config.get('api_keys', '')
-
-        # Using API Key Authenticator, keys are extracted from api_keys dict
-        if auth_method == "api_key":
-            if api_keys:
-                for k, v in api_keys.items():
-                    key = k
-                    value = v
-            return APIKeyAuthenticator(
-                stream=self,
-                key=key,
-                value=value
-            )
-        # Using Basic Authenticator
-        elif auth_method == "basic":
-            return BasicAuthenticator(
-                stream=self,
-                username=self.config.get('username', ''),
-                password=self.config.get('password', '')
-            )
-        # Using OAuth Authenticator
-        elif auth_method == "oauth":
-            return ConfigurableOAuthAuthenticator(
-                stream=self,
-                auth_endpoint=self.config.get('access_token_url', ''),
-                oauth_scopes=self.config.get('scope', ''),
-                default_expiration=self.config.get('oauth_expiration_secs', ''),
-            )
-        # Using Bearer Token Authenticator
-        elif auth_method == "bearer_token":
-            return BearerTokenAuthenticator(
-                stream=self,
-                token=self.config.get('bearer_token', ''),
-            )
-        # Using AWS Authenticator
-        elif auth_method == "aws":
-            return AWSAuthenticator(
-                stream=self,
-                http_auth=self.http_auth, # TODO: Refactor when in SDK, parameter doesn't do anything at the moment.
-            )
-        else:
-            self.logger.error(f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token.")
-            raise ValueError(
-                f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token."
-            )
