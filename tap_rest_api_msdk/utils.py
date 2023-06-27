@@ -66,6 +66,17 @@ def flatten_json(obj: dict, except_keys: Optional[list] = None) -> dict:
     return out
     
 def unnest_dict(d):
+    """Flattens a dict object by create a new object with the key value pairs.
+
+    Recursive flattening any nested dicts to a single level.
+
+    Args:
+        obj: the dict object to be flattened.
+
+    Returns:
+        A flattened dict object.
+
+    """
     result = {}
     for k,v in d.items():
         if isinstance(v, dict):

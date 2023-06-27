@@ -1,8 +1,12 @@
-#from singer_sdk.pagination import HeaderLinkPaginator, BaseOffsetPaginator, BasePageNumberPaginator
-from typing import Any, Optional
+"""REST API pagination handling."""
+from typing import Any, Optional, cast
+from urllib.parse import urlparse, parse_qs
 
 import requests
-from singer_sdk.pagination import SinglePagePaginator, BaseOffsetPaginator, BaseHATEOASPaginator, JSONPathPaginator, HeaderLinkPaginator, SimpleHeaderPaginator, BasePageNumberPaginator
+from dateutil.parser import parse
+from singer_sdk.helpers.jsonpath import extract_jsonpath
+from singer_sdk.pagination import BaseOffsetPaginator, HeaderLinkPaginator, BasePageNumberPaginator
+from utils import unnest_dict
 
 class RestAPIBasePageNumberPaginator(BasePageNumberPaginator):
     def __init__(

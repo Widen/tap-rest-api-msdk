@@ -1,18 +1,19 @@
 """Stream type classes for tap-rest-api-msdk."""
 
 from datetime import datetime
-from typing import Any, Dict, Iterable, Optional, cast
+from typing import Any, Dict, Iterable, Optional
 
-import requests
 import email.utils
+import requests
 from singer_sdk.helpers.jsonpath import extract_jsonpath
-from tap_rest_api_msdk.pagination import SinglePagePaginator, BaseHATEOASPaginator, JSONPathPaginator, SimpleHeaderPaginator, RestAPIHeaderLinkPaginator, RestAPIOffsetPaginator, RestAPIBasePageNumberPaginator
-from tap_rest_api_msdk.client import RestApiStream
-from tap_rest_api_msdk.utils import flatten_json, unnest_dict
+from singer_sdk.pagination import SinglePagePaginator, BaseHATEOASPaginator, JSONPathPaginator, HeaderLinkPaginator, SimpleHeaderPaginator
 from urllib.parse import urlparse, parse_qsl, parse_qs
+from tap_rest_api_msdk.client import RestApiStream
+from tap_rest_api_msdk.pagination import RestAPIHeaderLinkPaginator, RestAPIOffsetPaginator, RestAPIBasePageNumberPaginator
+from tap_rest_api_msdk.utils import flatten_json
 
-import logging
-import http.client
+#import logging
+#import http.client
 
 # Remove commented section to show http_request for debugging
 #http.client.HTTPConnection.debuglevel = 1
@@ -374,7 +375,7 @@ class DynamicStream(RestApiStream):
                 
         # Set Pagination Limits if required.
         if self.pagination_page_size and self.pagination_limit_per_page_param:
-            params[pagination_limit_per_page_param] = self.pagination_page_size
+            params[self.pagination_limit_per_page_param] = self.pagination_page_size
                 
         if next_page_token:
             # Parse the next_page_token for the path and parameters

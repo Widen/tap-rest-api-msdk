@@ -164,6 +164,7 @@ provided at the top-level will be the default values for each stream.:
 - `redirect_uri`: optional: see authentication params below.
 - `oauth_extras`: optional: see authentication params below.
 - `oauth_expiration_secs`: optional: see authentication params below.
+- `aws_credentials`: optional: see authentication params below.
 
 #### Stream level config options. 
 Parameters that appear at the stream-level
@@ -237,6 +238,14 @@ will overwrite their top-level counterparts except where noted below:
 - `oauth_expiration_secs`: optional: Used for OAuth2 authentication method. This optional setting
   is a timer for the expiration of a token in seconds. If not set the OAuth will use the default
   expiration set in the token by the authorization server.
+- `aws_credentials`: optional: A object of Key/Value pairs to support AWS authentication when using the AWS authenticator. While the tap can use AWS [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html) environment variables and aws_profiles, the [AWS service code](https://docs.aws.amazon.com/general/latest/gr/rande.html) needs to be specified e.g. `es` for OpenSearch / Elastic Search. By default the requirement to use `use_signed_credentials` is set to true. Config example:
+  ```json
+  { "aws_access_key_id": "my_aws_key_id",
+    "aws_secret_access_key": "my_aws_secret_access_key",
+    "aws_region": "us-east-1",
+    "aws_service": "es",
+    "use_signed_credentials": true}
+  ```
 
 #### Complex Authentication
 
@@ -478,6 +487,21 @@ export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="offset_paginator"
 export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="style1"
 export TAP_REST_API_MSDK_PAGINATION_TOTAL_LIMIT_PARAM="total_count"
 export TAP_REST_API_MSDK_STREAMS='[{"name": "jobs", "path": "/jobs", "primary_keys": ["id"], "records_path": "$.data[*]"}]'
+```
+
+### AWS OpenSearch API Example
+
+This example uses the [AWS4Auth](https://github.com/tedder/requests-aws4auth) authenticator to provide signed AWS credentials for the request AWS API. In this example pagination has not been specified, pick appropriate pagination for service. This example also sets the streams record_path to `"$.hits.hits[*]"` which is the location of the data.
+
+Note: The AWS authentication does support [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html) environment variables and aws_profiles.
+
+```
+# Access AWS objects via the AWS Open/Elastic Search API
+export TAP_REST_API_MSDK_API_URL="https://<endpoint>.<aws region>.<aws service>.amazonaws.com"
+export TAP_REST_API_MSDK_AWS_CREDENTIALS='{"aws_access_key_id": "<removed aws access key id>", "aws_secret_access_key": "removed aws secret access key>",
+"aws_region": "<aws region e.g. us‑east‑1>", "aws_service": "<aws service e.g. es for opensearch>", "create_signed_credentials": true}'
+export TAP_REST_API_MSDK_AUTH_METHOD='aws'
+export TAP_REST_API_MSDK_STREAMS='[{"name": "resourcea", "path": "/resourcea/_search", "primary_keys": [], "records_path": "$.hits.hits[*]"},{"name": "resourceb", "path": "/resourceb/_search", "primary_keys": [], "records_path": "$.hits.hits[*]"}]'
 ```
 
 ## Usage

@@ -1,12 +1,11 @@
 """REST client handling, including RestApiStream base class."""
 
 from pathlib import Path
-from typing import Any, Optional
-from singer_sdk.authenticators import APIAuthenticatorBase, SimpleAuthenticator
-from tap_rest_api_msdk.auth import select_authenticator
-import requests
+from typing import Any
 
+from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
+from tap_rest_api_msdk.auth import select_authenticator
 
 SCHEMAS_DIR = Path(__file__).parent / Path("./schemas")
 
@@ -29,7 +28,7 @@ class RestApiStream(RESTStream):
       
 
     @property
-    def authenticator(self) -> APIAuthenticatorBase:
+    def authenticator(self) -> Any:
         """Calls an appropriate SDK Authentication method based on the the set auth_method
         which is set in the config.
         If an authenticator (auth_method) is not specified, REST-based taps will simply pass
@@ -42,7 +41,7 @@ class RestApiStream(RESTStream):
             ValueError: if the auth_method is unknown.
 
         Returns:
-            A SDK Authenticator or SimpleAuthenticator if no auth_method supplied.
+            A SDK Authenticator or APIAuthenticatorBase if no auth_method supplied.
         """
 
         stream_authenticator = select_authenticator(self)
@@ -50,6 +49,6 @@ class RestApiStream(RESTStream):
         if stream_authenticator:
             return stream_authenticator
         else:
-            return SimpleAuthenticator(stream=self)
+            return APIAuthenticatorBase(stream=self)
           
 

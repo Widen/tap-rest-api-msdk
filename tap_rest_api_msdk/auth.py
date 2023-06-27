@@ -1,12 +1,11 @@
 """REST authentication handling."""
 
 import os
-from requests_aws4auth import AWS4Auth
-import boto3
-from singer_sdk.authenticators import APIAuthenticatorBase, SimpleAuthenticator, APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator
-import requests
+from typing import Any
 
-from singer_sdk.streams import RESTStream
+import boto3
+from requests_aws4auth import AWS4Auth
+from singer_sdk.authenticators import APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator
 
 class AWSConnectClient:
     """A connection class to AWS Resources"""
@@ -25,6 +24,7 @@ class AWSConnectClient:
         self.region = None
         self.credentials = None
         self.aws_service = None
+        self.aws_session = None
         
         # Establish a AWS Client
         self.credentials = self._create_aws_client()
@@ -50,7 +50,7 @@ class AWSConnectClient:
 
         # AWS credentials based authentication
         if aws_access_key_id and aws_secret_access_key:
-            aws_session = boto3.session.Session(
+            self.aws_session = boto3.session.Session(
                 aws_access_key_id=aws_access_key_id,
                 aws_secret_access_key=aws_secret_access_key,
                 region_name=aws_region,
@@ -58,13 +58,13 @@ class AWSConnectClient:
             )
         # AWS Profile based authentication
         elif aws_profile:
-            aws_session = boto3.session.Session(profile_name=aws_profile)
+            self.aws_session = boto3.session.Session(profile_name=aws_profile)
         else:
-            aws_session = None
+            self.aws_session = None
             
-        if aws_session:
-            self.region = aws_session.region_name
-            return aws_session.get_credentials()
+        if self.aws_session:
+            self.region = self.aws_session.region_name
+            return self.aws_session.get_credentials()
         else:
             return None
 
@@ -76,7 +76,6 @@ class AWSConnectClient:
             The None.
 
         """
-
         if self.create_signed_credentials and self.credentials:
             self.aws_auth = AWS4Auth(self.credentials.access_key, self.credentials.secret_key, self.region, self.aws_service, aws_session=self.credentials.token)
         else:
@@ -90,7 +89,6 @@ class AWSConnectClient:
             The awsauth object.
 
         """
-
         return self.aws_auth
       
     def get_aws_session_client(self):
@@ -100,8 +98,7 @@ class AWSConnectClient:
             The an AWS Session Client.
 
         """
-
-        return aws_session.client(self.aws_service,
+        return self.aws_session.client(self.aws_service,
                                   region_name=self.region)
 
 
@@ -174,7 +171,7 @@ class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
         return oauth_params
 
 
-def select_authenticator(self) -> APIAuthenticatorBase:
+def select_authenticator(self) -> Any:
     """Calls an appropriate SDK Authentication method based on the the set auth_method.
     If an auth_method is not provided, the tap will call the API using any settings from
     the headers and params config.

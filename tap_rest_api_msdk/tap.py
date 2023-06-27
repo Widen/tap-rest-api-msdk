@@ -9,9 +9,9 @@ from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
+from tap_rest_api_msdk.auth import select_authenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
-from tap_rest_api_msdk.auth import AWSConnectClient, select_authenticator
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
@@ -483,6 +483,7 @@ class TapRestApiMsdk(Tap):
             authenticator = select_authenticator(self)
             if hasattr(authenticator, "auth_headers"):
                 headers.update(authenticator.auth_headers or {})
+            if hasattr(authenticator, "auth_params"):
                 params.update(authenticator.auth_params or {})
 
         r = requests.get(self.config["api_url"] + path, auth=self.http_auth, params=params, headers=headers)
