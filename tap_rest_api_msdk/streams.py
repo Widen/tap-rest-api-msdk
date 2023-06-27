@@ -12,10 +12,10 @@ from tap_rest_api_msdk.client import RestApiStream
 from tap_rest_api_msdk.pagination import RestAPIHeaderLinkPaginator, RestAPIOffsetPaginator, RestAPIBasePageNumberPaginator
 from tap_rest_api_msdk.utils import flatten_json
 
+# Remove commented section to show http_request for debugging
 #import logging
 #import http.client
 
-# Remove commented section to show http_request for debugging
 #http.client.HTTPConnection.debuglevel = 1
 
 #logging.basicConfig()

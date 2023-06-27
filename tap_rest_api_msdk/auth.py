@@ -44,8 +44,8 @@ class AWSConnectClient:
         aws_session_token = config.get('aws_session_token') or os.environ.get('AWS_SESSION_TOKEN')
         aws_region = config.get('aws_region') or os.environ.get('AWS_REGION')
         self.aws_service = config.get('aws_service',None) or os.environ.get('AWS_SERVICE')
-        
-        if not config.get('create_signed_credentials',None):
+
+        if not config.get('create_signed_credentials',True):
             self.create_signed_credentials = False
 
         # AWS credentials based authentication

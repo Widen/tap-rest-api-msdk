@@ -6,7 +6,7 @@ import requests
 from dateutil.parser import parse
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.pagination import BaseOffsetPaginator, HeaderLinkPaginator, BasePageNumberPaginator
-from utils import unnest_dict
+from tap_rest_api_msdk.utils import unnest_dict
 
 class RestAPIBasePageNumberPaginator(BasePageNumberPaginator):
     def __init__(
