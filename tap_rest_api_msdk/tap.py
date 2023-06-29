@@ -66,8 +66,8 @@ class TapRestApiMsdk(Tap):
             "replication_key",
             th.StringType,
             required=False,
-            description="the json key of the replication key. Note that this should "
-            "be an incrementing integer or datetime object.",
+            description="the json response field representing the replication key."
+            "Note that this should be an incrementing integer or datetime object.",
         ),
         th.Property(
             "except_keys",
@@ -99,25 +99,27 @@ class TapRestApiMsdk(Tap):
             "replication key and there is no state available.",
         ),
         th.Property(
-            "search_parameter",
+            "source_search_field",
             th.StringType,
             required=False,
-            description="An optional search parameter name used for querying specific "
+            description="An optional field name which can be used for querying specific "
             "records from supported API's. The intend for this parameter is to continue "
-            "incrementally processing from a previous state. Example last-updated. "
-            "When combined with a previous state value may look like this example "
-            "last-updated=gt2022-08-01:00:00:00. Note: The api_query_parameter must "
-            "used with replication_key, where the replication_key is the schema "
-            "representation of the search_parameter.",
+            "incrementally processing from a previous state. Example `last-updated`. "
+            "Note: You must also set the replication_key, where the replication_key is"
+            "json response representation of the API `source_search_field`. You should"
+            "also supply the `source_search_query`.",
         ),
         th.Property(
-            "search_prefix",
+            "source_search_query",
             th.StringType,
             required=False,
-            description="An optional search value prefix which may be used by supported API's "
-            "for incremental replication, e.g. eq, gt, or lt. The prefix values represent Equal "
-            "to the provided value, Greater than, or Less than. An example when combined with "
-            "a date value gt2022-08-01:00:00:00 returns records greater than this set date.",
+            description="An optional query template to be issued against the API."
+            "Change the query field you are querying against with $last_run_date. At"
+            "run-time, the tap will substitute in either the `start_date` or the"
+            "last bookmark / state value. A simple template Example for FHIR API's: "
+            "gt$last_run_date . A more complex example against an Opensearch API, "
+            "{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": \"$last_run_date\" }}}] }} ."
+            "Note: Any required double quotes in the query template must be escaped.",
         ),
     )
 
@@ -279,6 +281,15 @@ class TapRestApiMsdk(Tap):
             "Defaults to `default`",
         ),
         th.Property(
+            "use_request_body_not_params",
+            th.BooleanType,
+            default=False,
+            required=False,
+            description="send the request parameters in the request body."
+            "This is normally not required, a few API's require this like"
+            "OpenSearch. Defaults to `False`",
+        ),
+        th.Property(
             "pagination_page_size",
             th.IntegerType,
             default=None,
@@ -377,11 +388,11 @@ class TapRestApiMsdk(Tap):
             replication_key=stream.get(
                         "replication_key", self.config.get("replication_key", "")
                     )
-            search_parameter=stream.get(
-                        "search_parameter", self.config.get("search_parameter", "")
+            source_search_field=stream.get(
+                        "source_search_field", self.config.get("source_search_field", "")
                     )
-            search_prefix=stream.get(
-                        "search_prefix", self.config.get("search_prefix", "")
+            source_search_query=stream.get(
+                        "source_search_query", self.config.get("source_search_query", "")
                     )
 
             schema = {}
@@ -434,8 +445,9 @@ class TapRestApiMsdk(Tap):
                     pagination_total_limit_param=self.config.get("pagination_total_limit_param"),
                     schema=schema,
                     start_date=start_date,
-                    search_parameter=search_parameter,
-                    search_prefix=search_prefix,
+                    source_search_field=source_search_field,
+                    source_search_query=source_search_query,
+                    use_request_body_not_params=self.config.get("use_request_body_not_params"),
                 )
             )
 

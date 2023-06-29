@@ -1,7 +1,9 @@
 """Stream type classes for tap-rest-api-msdk."""
 
+import json
 from datetime import datetime
 from typing import Any, Dict, Iterable, Optional
+from string import Template
 
 import email.utils
 import requests
@@ -10,7 +12,7 @@ from singer_sdk.pagination import SinglePagePaginator, BaseHATEOASPaginator, JSO
 from urllib.parse import urlparse, parse_qsl, parse_qs
 from tap_rest_api_msdk.client import RestApiStream
 from tap_rest_api_msdk.pagination import RestAPIHeaderLinkPaginator, RestAPIOffsetPaginator, RestAPIBasePageNumberPaginator
-from tap_rest_api_msdk.utils import flatten_json
+from tap_rest_api_msdk.utils import flatten_json, get_start_date
 
 # Remove commented section to show http_request for debugging
 #import logging
@@ -49,8 +51,9 @@ class DynamicStream(RestApiStream):
         pagination_limit_per_page_param: Optional[str] = None,
         pagination_total_limit_param: Optional[str] = None,
         start_date: Optional[datetime] = None,
-        search_parameter: Optional[str] = None,
-        search_prefix: Optional[str] = None,
+        source_search_field: Optional[str] = None,
+        source_search_query: Optional[str] = None,
+        use_request_body_not_params: Optional[bool] = False,
     ) -> None:
         """Class initialization.
 
@@ -74,8 +77,9 @@ class DynamicStream(RestApiStream):
             pagination_limit_per_page_param: see tap.py
             pagination_total_limit_param: see tap.py
             start_date: see tap.py
-            search_parameter: see tap.py
-            search_prefix: see tap.py
+            source_search_field: see tap.py
+            source_search_query: see tap.py
+            use_request_body_not_params: see tap.py
 
         """
         super().__init__(tap=tap, name=tap.name, schema=schema)
@@ -100,17 +104,31 @@ class DynamicStream(RestApiStream):
                                  "page": self._get_url_params_page_style,
                                  "header_link": self._get_url_params_header_link,
                                  "hateoas_body": self._get_url_params_hateoas_body}
-        self.get_url_params = get_url_params_styles.get(  # type: ignore
-            pagination_response_style, self._get_url_params_page_style
-        ) # Defaults to page_style url_params
+                                 
+        # Selecting the appropriate method to send Parameters as part of the
+        # request. If use_request_body_not_params is set the parameters are sent
+        # in the request body instead of request parameters. The 
+        # pagination_response_style config determines what style of parameter 
+        # processing is invoked.
+
+        self.use_request_body_not_params = use_request_body_not_params
+        if self.use_request_body_not_params:
+            self.prepare_request_payload = get_url_params_styles.get(  # type: ignore
+                pagination_response_style, self._get_url_params_page_style
+            ) # Defaults to page_style url_params
+        else:
+            self.get_url_params = get_url_params_styles.get(  # type: ignore
+                pagination_response_style, self._get_url_params_page_style
+            ) # Defaults to page_style url_params
+
         self.pagination_request_style = pagination_request_style
         self.pagination_results_limit = pagination_results_limit
         self.pagination_next_page_param = pagination_next_page_param
         self.pagination_limit_per_page_param = pagination_limit_per_page_param
         self.pagination_total_limit_param = pagination_total_limit_param
         self.start_date = start_date
-        self.search_parameter = search_parameter
-        self.search_prefix = search_prefix
+        self.source_search_field = source_search_field
+        self.source_search_query = source_search_query
         
         # Setting Pagination Limits
         if self.pagination_request_style == 'restapi_header_link_paginator':
@@ -215,6 +233,8 @@ class DynamicStream(RestApiStream):
             An object containing the parameters to add to the request.
 
         """
+        # Initialise Starting Values
+        last_run_date = get_start_date(self, context)
         params: dict = {}
         if self.params:
             for k, v in self.params.items():
@@ -226,9 +246,18 @@ class DynamicStream(RestApiStream):
                 next_page_parm = "page"
             params[next_page_parm] = next_page_token
         if self.replication_key:
-            params["sort"] = "asc"
-            params["order_by"] = self.replication_key
-        return params
+            # Use incremental replication (if available) via a filter query being sent to the API
+            # This assumes storing a replication timestamp and querying records greater than that
+            # date in subsequent runs. Config the appropriate source field and query template.
+            if self.source_search_field and self.source_search_query and last_run_date:
+                query_template = Template(self.source_search_query)
+                if self.use_request_body_not_params:
+                    params[self.source_search_field] = json.loads(query_template.substitute(last_run_date=last_run_date))
+                else:
+                    params[self.source_search_field] = query_template.substitute(last_run_date=last_run_date)
+            else:
+                params["sort"] = "asc"
+                params["order_by"] = self.replication_key
 
     def _get_url_params_offset_style(
         self, context: Optional[dict], next_page_token: Optional[Any]
@@ -243,7 +272,10 @@ class DynamicStream(RestApiStream):
             An object containing the parameters to add to the request.
 
         """
+        # Initialise Starting Values
+        last_run_date = get_start_date(self, context)
         params: dict = {}
+
         if self.params:
             for k, v in self.params.items():
                 params[k] = v
@@ -260,10 +292,21 @@ class DynamicStream(RestApiStream):
                 limit_per_page_param = "limit"
             params[limit_per_page_param] = self.pagination_page_size
         if self.replication_key:
-            params["sort"] = "asc"
-            params["order_by"] = self.replication_key
+            # Use incremental replication (if available) via a filter query being sent to the API
+            # This assumes storing a replication timestamp and querying records greater than that
+            # date in subsequent runs. Config the appropriate source field and query template.
+            if self.source_search_field and self.source_search_query and last_run_date:
+                query_template = Template(self.source_search_query)
+                if self.use_request_body_not_params:
+                    params[self.source_search_field] = json.loads(query_template.substitute(last_run_date=last_run_date))
+                else:
+                    params[self.source_search_field] = query_template.substitute(last_run_date=last_run_date)
+            else:
+                params["sort"] = "asc"
+                params["order_by"] = self.replication_key
+
         return params
-      
+
     def _get_url_params_header_link(
         self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
@@ -325,22 +368,6 @@ class DynamicStream(RestApiStream):
 
         return params
 
-    def get_start_date(
-        self, context: dict
-    ) -> Any:
-        """Returns a start date if a DateTime bookmark is available.
-
-        Args:
-            context: - the singer context object.
-
-        Returns:
-            An start date else and empty string.
-
-        """
-        try:
-            return self.get_starting_timestamp(context).strftime("%Y-%m-%dT%H:%M:%S")
-        except (ValueError, AttributeError):
-            return ""
 
     def _get_url_params_hateoas_body(
         self, context: Optional[dict], next_page_token: Optional[Any]
@@ -364,11 +391,10 @@ class DynamicStream(RestApiStream):
 
         """
 
-        start_date = self.get_start_date(context)
-
-        bookmark = self.get_starting_replication_key_value(context)
-
+        # Initialise Starting Values
+        last_run_date = get_start_date(self, context)
         params: dict = {}
+
         if self.params:
             for k, v in self.params.items():
                 params[k] = v
@@ -389,11 +415,17 @@ class DynamicStream(RestApiStream):
             else:
                 self.path=url_parsed.path
         elif self.replication_key:
-            # Setup initial replication start_date or provided identifier
-            if self.search_parameter and start_date:
-                params[self.search_parameter] = self.search_prefix + start_date
-            elif self.search_parameter and bookmark:
-                params[self.search_parameter] = self.search_prefix + bookmark
+            # Use incremental replication (if available) via a filter query being sent to the API
+            # This assumes storing a replication timestamp and querying records greater than that
+            # date in subsequent runs. Config the appropriate source field and query template.
+            if self.source_search_field and self.source_search_query and last_run_date:
+                query_template = Template(self.source_search_query)
+                if self.use_request_body_not_params:
+                    params[self.source_search_field] = json.loads(query_template.substitute(last_run_date=last_run_date))
+                else:
+                    params[self.source_search_field] = query_template.substitute(last_run_date=last_run_date)
+            elif self.source_search_field and last_run_date:
+                params[self.source_search_field] = "gt" + last_run_date
 
         return params
 

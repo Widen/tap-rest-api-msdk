@@ -84,3 +84,23 @@ def unnest_dict(d):
         else:
             result[k] = v
     return result
+
+def get_start_date(
+    self,
+    context: dict
+) -> Any:
+    """Returns a start date if a DateTime bookmark is available.
+    Otherwise it returns the starting date as defined in 
+    the start_date parameter.
+
+    Args:
+        context: - the singer context object.
+
+    Returns:
+        An start date else and empty string.
+
+    """
+    try:
+        return self.get_starting_timestamp(context).strftime("%Y-%m-%dT%H:%M:%S")
+    except (ValueError, AttributeError):
+        return self.get_starting_replication_key_value(context)

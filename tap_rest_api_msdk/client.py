@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Any
 
+from memoization import cached
 from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
 from tap_rest_api_msdk.auth import select_authenticator
@@ -28,14 +29,19 @@ class RestApiStream(RESTStream):
       
 
     @property
+    @cached
     def authenticator(self) -> Any:
         """Calls an appropriate SDK Authentication method based on the the set auth_method
-        which is set in the config.
+        which is set via the config.
         If an authenticator (auth_method) is not specified, REST-based taps will simply pass
-        `http_headers` as defined in the stream class.
+        `http_headers` as defined in the tap and stream classes.
         
-        Note: Each auth method requires certain configuration to be present see README.md
+        Note 1: Each auth method requires certain configuration to be present see README.md
         for each auth methods configuration requirements.
+        
+        Note 2: The cached decorator will have all calls to the authenticator use the
+        same instance logic to speed up processing. TODO: Examine if this affects OAuth2
+        callbacks and if logic is required for callback for expiring AWS STS tokens.
 
         Raises:
             ValueError: if the auth_method is unknown.
