@@ -239,8 +239,8 @@ def select_authenticator(self) -> Any:
             self.http_auth = None
 
         return self.http_auth
-    else:
-        self.logger.error(f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token.")
+    elif auth_method != "no_auth":
+        self.logger.error(f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, bearer_token, or aws.")
         raise ValueError(
-            f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token."
+            f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, bearer_token, or aws."
         )

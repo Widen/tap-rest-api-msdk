@@ -95,8 +95,9 @@ class TapRestApiMsdk(Tap):
             "start_date",
             th.DateTimeType,
             required=False,
-            description="An optional initial starting date when using a date based "
-            "replication key and there is no state available.",
+            description="An optional field. Normally required when using the"
+            "replication_key. This is the initial starting date when using a"
+            "date based replication key and there is no state available.",
         ),
         th.Property(
             "source_search_field",
@@ -107,17 +108,17 @@ class TapRestApiMsdk(Tap):
             "incrementally processing from a previous state. Example `last-updated`. "
             "Note: You must also set the replication_key, where the replication_key is"
             "json response representation of the API `source_search_field`. You should"
-            "also supply the `source_search_query`.",
+            "also supply the `source_search_query`, `replication_key` and `start_date`.",
         ),
         th.Property(
             "source_search_query",
             th.StringType,
             required=False,
             description="An optional query template to be issued against the API."
-            "Change the query field you are querying against with $last_run_date. At"
-            "run-time, the tap will substitute in either the `start_date` or the"
-            "last bookmark / state value. A simple template Example for FHIR API's: "
-            "gt$last_run_date . A more complex example against an Opensearch API, "
+            "Substitute the query field you are querying against with $last_run_date. At"
+            "run-time, the tap will dynamically update the token with either the `start_date`
+            "or the last bookmark / state value. A simple template Example for FHIR API's: "
+            "gt$last_run_date. A more complex example against an Opensearch API, "
             "{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": \"$last_run_date\" }}}] }} ."
             "Note: Any required double quotes in the query template must be escaped.",
         ),
@@ -285,9 +286,9 @@ class TapRestApiMsdk(Tap):
             th.BooleanType,
             default=False,
             required=False,
-            description="send the request parameters in the request body."
-            "This is normally not required, a few API's require this like"
-            "OpenSearch. Defaults to `False`",
+            description="sends the request parameters in the request body."
+            "This is normally not required, a few API's like OpenSearch"
+            "require this. Defaults to `False`",
         ),
         th.Property(
             "pagination_page_size",
