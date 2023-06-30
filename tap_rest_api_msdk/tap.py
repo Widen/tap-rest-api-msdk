@@ -116,7 +116,7 @@ class TapRestApiMsdk(Tap):
             required=False,
             description="An optional query template to be issued against the API."
             "Substitute the query field you are querying against with $last_run_date. At"
-            "run-time, the tap will dynamically update the token with either the `start_date`
+            "run-time, the tap will dynamically update the token with either the `start_date`"
             "or the last bookmark / state value. A simple template Example for FHIR API's: "
             "gt$last_run_date. A more complex example against an Opensearch API, "
             "{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": \"$last_run_date\" }}}] }} ."

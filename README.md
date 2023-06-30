@@ -13,6 +13,7 @@ There are many forms of Authentication supported by this tap. By default for leg
 - API Key
 - Bearer Token
 - OAuth
+- AWS
 
 Please note that OAuthJWTAuthentication has not been developed. If you are interested in contributing this, please fork and make a pull request. 
 
@@ -201,7 +202,7 @@ will overwrite their top-level counterparts except where noted below:
   might be **meta_lastUpdated**. The replication_key is set to meta_lastUpdated, and the search_parameter to last-updated. Note: Please set the `replication_key`, `start_date`, `source_search_field`, and `source_search_query` parameters all together.
 - `source_search_query`: optional: used by the **offset**, **page**, and **hateoas_body** response style. This is a query template to be issued against the API. A simple query template example for FHIR API's is **gt$last_run_date**.
 
-  A more complex example against an Opensearch API, **{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": "$last_run_date\" }}}] }}**. Note: Any required double quotes in the query template must be escaped.
+  A more complex example against an Opensearch API, **{\\"bool\\": {\\"filter\\": [{\\"range\\": { \\"meta.lastUpdated\\": { \\"gt\\": \\"$last_run_date\\" }}}] }}**. Note: Any required double quotes in the query template must be escaped.
 
   At run-time, the tap will dynamically change the value **$last_run_date** with either the defined `start_date` parameter or the last bookmark / state value.
   Example: source_search_field=**last-updated**, the 
@@ -520,16 +521,16 @@ Unlike most API requests, the API query is against an API parameter named `query
 
 ```
 # Access AWS objects via the AWS Open/Elastic Search API
-export api_url="https://<endpoint>.<aws region>.<aws service>.amazonaws.com"
-export aws_credentials='{"aws_access_key_id": "<removed aws access key id>", "aws_secret_access_key": "removed aws secret access key>", "aws_region": "<aws region e.g. us‑east‑1>", "aws_service": "<aws service e.g. es for opensearch>", "create_signed_credentials": true}'
-export start_date="2001-01-01T00:00:00.00+12:00"
-export pagination_request_style="jsonpath_paginator"
-export pagination_response_style="offset"
-export use_request_body_not_params=true
-export next_page_token_path='$.hits.hits[-1:].sort'
-export pagination_next_page_param="search_after"
-export auth_method='aws'
-export streams='[{"name": "careplan", "params": {"size": 100, "sort": "_id"}, "path": "/careplan/_search", "primary_keys": [], "records_path": "$.hits.hits[*]", "replication_key": "_source_meta_lastUpdated", "source_search_field": "query", "source_search_query": "{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": \"$last_run_date\" }}}] }}"}]'
+export TAP_REST_API_MSDK_API_URL="https://<endpoint>.<aws region>.<aws service>.amazonaws.com"
+export TAP_REST_API_MSDK_AWS_CREDENTIALS='{"aws_access_key_id": "<removed aws access key id>", "aws_secret_access_key": "removed aws secret access key>", "aws_region": "<aws region e.g. us‑east‑1>", "aws_service": "<aws service e.g. es for opensearch>", "create_signed_credentials": true}'
+export TAP_REST_API_MSDK_START_DATE="2001-01-01T00:00:00.00+12:00"
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="jsonpath_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="offset"
+export TAP_REST_API_MSDK_USE_REQUEST_BODY_NOT_PARAMS=true
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH='$.hits.hits[-1:].sort'
+export TAP_REST_API_MSDK_PAGINATION_NEXT_PAGE_PARAM="search_after"
+export TAP_REST_API_MSDK_AUTH_METHOD='aws'
+export TAP_REST_API_MSDK_STREAMS='[{"name": "careplan", "params": {"size": 100, "sort": "_id"}, "path": "/careplan/_search", "primary_keys": [], "records_path": "$.hits.hits[*]", "replication_key": "_source_meta_lastUpdated", "source_search_field": "query", "source_search_query": "{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": \"$last_run_date\" }}}] }}"}]'
 ```
 
 ## Usage
