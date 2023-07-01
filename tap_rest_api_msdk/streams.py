@@ -259,6 +259,8 @@ class DynamicStream(RestApiStream):
                 params["sort"] = "asc"
                 params["order_by"] = self.replication_key
 
+        return params
+
     def _get_url_params_offset_style(
         self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
