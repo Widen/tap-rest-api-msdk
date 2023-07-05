@@ -9,79 +9,17 @@ from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
-from singer_sdk.authenticators import APIAuthenticatorBase, APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator
+from tap_rest_api_msdk.auth import select_authenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
-
-class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
-
-    @property
-    def oauth_request_body(self) -> dict:
-        """Build up a list of OAuth2 parameters to use depending
-        on what configuration items have been set and the type of OAuth
-        flow set by the grant_type.
-        """
-
-        client_id = self.config.get('client_id')
-        client_secret = self.config.get('client_secret')
-        username = self.config.get('username')
-        password = self.config.get('password')
-        refresh_token = self.config.get('refresh_token')
-        grant_type = self.config.get('grant_type')
-        scope = self.config.get('scope')
-        redirect_uri = self.config.get('redirect_uri')
-        oauth_extras = self.config.get('oauth_extras')
-
-        oauth_params = {}
-
-        # Test mandatory parameters based on grant_type
-        if grant_type:
-            oauth_params['grant_type'] = grant_type
-        else:
-            raise ValueError("Missing grant type for OAuth Token.")
-
-        if grant_type == 'client_credentials':
-            if not (client_id and client_secret):
-                raise ValueError(
-                    "Missing either client_id or client_secret for 'client_credentials' grant_type."
-                )
-
-        if grant_type == 'password':
-            if not (username and password):
-                raise ValueError("Missing either username or password for 'password' grant_type.")
-
-        if grant_type == 'refresh_token':
-            if not refresh_token:
-                raise ValueError("Missing either refresh_token for 'refresh_token' grant_type.")
-
-        # Add parameters if they are set
-        if scope:
-            oauth_params['scope'] = scope
-        if client_id:
-            oauth_params['client_id'] = client_id
-        if client_secret:
-            oauth_params['client_secret'] = client_secret
-        if username:
-            oauth_params['username'] = username
-        if password:
-            oauth_params['password'] = password
-        if refresh_token:
-            oauth_params['refresh_token'] = refresh_token
-        if redirect_uri:
-            oauth_params['redirect_uri'] = redirect_uri
-        if oauth_extras:
-            for k, v in oauth_extras.items():
-                oauth_params[k] = v
-
-        return oauth_params
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
 
     name = "tap-rest-api-msdk"
 
-    # Required for Authentication in tap.py
-    tap_name = "tap-rest-api-msdk"
+    # Required for Authentication in tap.py - function APIAuthenticatorBase
+    tap_name = name
 
     common_properties = th.PropertiesList(
         th.Property(
@@ -128,8 +66,8 @@ class TapRestApiMsdk(Tap):
             "replication_key",
             th.StringType,
             required=False,
-            description="the json key of the replication key. Note that this should "
-            "be an incrementing integer or datetime object.",
+            description="the json response field representing the replication key."
+            "Note that this should be an incrementing integer or datetime object.",
         ),
         th.Property(
             "except_keys",
@@ -157,29 +95,32 @@ class TapRestApiMsdk(Tap):
             "start_date",
             th.DateTimeType,
             required=False,
-            description="An optional initial starting date when using a date based "
-            "replication key and there is no state available.",
+            description="An optional field. Normally required when using the"
+            "replication_key. This is the initial starting date when using a"
+            "date based replication key and there is no state available.",
         ),
         th.Property(
-            "search_parameter",
+            "source_search_field",
             th.StringType,
             required=False,
-            description="An optional search parameter name used for querying specific "
+            description="An optional field name which can be used for querying specific "
             "records from supported API's. The intend for this parameter is to continue "
-            "incrementally processing from a previous state. Example last-updated. "
-            "When combined with a previous state value may look like this example "
-            "last-updated=gt2022-08-01:00:00:00. Note: The api_query_parameter must "
-            "used with replication_key, where the replication_key is the schema "
-            "representation of the search_parameter.",
+            "incrementally processing from a previous state. Example `last-updated`. "
+            "Note: You must also set the replication_key, where the replication_key is"
+            "json response representation of the API `source_search_field`. You should"
+            "also supply the `source_search_query`, `replication_key` and `start_date`.",
         ),
         th.Property(
-            "search_prefix",
+            "source_search_query",
             th.StringType,
             required=False,
-            description="An optional search value prefix which may be used by supported API's "
-            "for incremental replication, e.g. eq, gt, or lt. The prefix values represent Equal "
-            "to the provided value, Greater than, or Less than. An example when combined with "
-            "a date value gt2022-08-01:00:00:00 returns records greater than this set date.",
+            description="An optional query template to be issued against the API."
+            "Substitute the query field you are querying against with $last_run_date. At"
+            "run-time, the tap will dynamically update the token with either the `start_date`"
+            "or the last bookmark / state value. A simple template Example for FHIR API's: "
+            "gt$last_run_date. A more complex example against an Opensearch API, "
+            "{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": \"$last_run_date\" }}}] }} ."
+            "Note: Any required double quotes in the query template must be escaped.",
         ),
     )
 
@@ -198,8 +139,9 @@ class TapRestApiMsdk(Tap):
             description="The method of authentication used by the API. Supported options include "
             "oauth: for OAuth2 authentication, basic: Basic Header authorization - base64-encoded "
             "username + password config items, api_key: for API Keys in the header e.g. X-API-KEY,"
-            " bearer_token: for Bearer token authorization. Defaults to no_auth which will take "
-            "authentication parameters passed via the headers config."
+            "bearer_token: for Bearer token authorization, aws: for AWS Authentication."
+            "Defaults to no_auth which will take authentication parameters passed via the headers"
+            "config."
         ),
         th.Property(
             "api_keys",
@@ -302,9 +244,23 @@ class TapRestApiMsdk(Tap):
             "the default expiration set in the token by the authorization server."
         ),
         th.Property(
+            "aws_credentials",
+            th.ObjectType(),
+            default=None,
+            required=False,
+            description="An object of aws credentials to authenticate to access AWS services."
+            "This example is to access the AWS OpenSearch service."
+            "Example: { ""aws_access_key_id"": ""my_aws_key_id"", "
+            "           ""aws_secret_access_key"": ""my_aws_secret_access_key"", "
+            "           ""aws_region"": ""us-east-1"", "
+            "           ""aws_service"": ""es"", "
+            "           ""use_signed_credentials"": true} "
+            
+        ),
+        th.Property(
             "next_page_token_path",
             th.StringType,
-            default="$.next_page",
+            default=None,
             required=False,
             description="a jsonpath string representing the path to the 'next page' "
             "token. Defaults to `$.next_page`",
@@ -326,11 +282,48 @@ class TapRestApiMsdk(Tap):
             "Defaults to `default`",
         ),
         th.Property(
+            "use_request_body_not_params",
+            th.BooleanType,
+            default=False,
+            required=False,
+            description="sends the request parameters in the request body."
+            "This is normally not required, a few API's like OpenSearch"
+            "require this. Defaults to `False`",
+        ),
+        th.Property(
             "pagination_page_size",
             th.IntegerType,
             default=None,
             required=False,
             description="the size of each page in records. Defaults to None",
+        ),
+        th.Property(
+            "pagination_results_limit",
+            th.IntegerType,
+            default=None,
+            required=False,
+            description="limits the max number of records. Defaults to None",
+        ),
+        th.Property(
+            "pagination_next_page_param",
+            th.StringType,
+            default=None,
+            required=False,
+            description="The name of the param that indicates the page/offset. Defaults to None",
+        ),
+        th.Property(
+            "pagination_limit_per_page_param",
+            th.StringType,
+            default=None,
+            required=False,
+            description="The name of the param that indicates the limit/per_page. Defaults to None",
+        ),
+        th.Property(
+            "pagination_total_limit_param",
+            th.StringType,
+            default="total",
+            required=False,
+            description="The name of the param that indicates the total limit e.g. total, count. Defaults to total",
         ),
     )
 
@@ -396,11 +389,11 @@ class TapRestApiMsdk(Tap):
             replication_key=stream.get(
                         "replication_key", self.config.get("replication_key", "")
                     )
-            search_parameter=stream.get(
-                        "search_parameter", self.config.get("search_parameter", "")
+            source_search_field=stream.get(
+                        "source_search_field", self.config.get("source_search_field", "")
                     )
-            search_prefix=stream.get(
-                        "search_prefix", self.config.get("search_prefix", "")
+            source_search_query=stream.get(
+                        "source_search_query", self.config.get("source_search_query", "")
                     )
 
             schema = {}
@@ -443,14 +436,19 @@ class TapRestApiMsdk(Tap):
                     ),
                     replication_key=replication_key,
                     except_keys=except_keys,
-                    next_page_token_path=self.config["next_page_token_path"],
+                    next_page_token_path=self.config.get("next_page_token_path"),
                     pagination_request_style=self.config["pagination_request_style"],
                     pagination_response_style=self.config["pagination_response_style"],
                     pagination_page_size=self.config.get("pagination_page_size"),
+                    pagination_results_limit=self.config.get("pagination_results_limit"),
+                    pagination_next_page_param=self.config.get("pagination_next_page_param"),
+                    pagination_limit_per_page_param=self.config.get("pagination_limit_per_page_param"),
+                    pagination_total_limit_param=self.config.get("pagination_total_limit_param"),
                     schema=schema,
                     start_date=start_date,
-                    search_parameter=search_parameter,
-                    search_prefix=search_prefix,
+                    source_search_field=source_search_field,
+                    source_search_query=source_search_query,
+                    use_request_body_not_params=self.config.get("use_request_body_not_params"),
                 )
             )
 
@@ -466,6 +464,10 @@ class TapRestApiMsdk(Tap):
         headers: dict,
     ) -> Any:
         """Infer schema from the first records returned by api. Creates a Stream object.
+        
+        If auth_method is set, will call select_authenticator to obtain credentials
+        to issue a request to sample some records. The select_authenticator will
+        set the self.http_auth if required by the request authenticator.
 
         Args:
             records_path: required - see config_jsonschema.
@@ -482,26 +484,33 @@ class TapRestApiMsdk(Tap):
             A schema for the stream.
 
         """
-        # todo: this request format is not very robust
+        # TODO: this request format is not very robust
 
-        auth_method = self.config.get('auth_method', '')
-        if auth_method and not auth_method == 'no_auth':
-            # Initializing Authenticator required in TAP for to dynamically discover schema
-            authenticator = self.authenticator
-            if authenticator:
+        # Initialise Variables
+        auth_method = self.config.get("auth_method", "")
+        self.http_auth = None
+
+        if auth_method and not auth_method == "no_auth":
+            # Initializing Authenticator for authorisation to obtain a schema.
+            # Will set the self.http_auth if required by a given authenticator
+            authenticator = select_authenticator(self)
+            if hasattr(authenticator, "auth_headers"):
                 headers.update(authenticator.auth_headers or {})
+            if hasattr(authenticator, "auth_params"):
                 params.update(authenticator.auth_params or {})
 
-        r = requests.get(self.config["api_url"] + path, params=params, headers=headers)
+        r = requests.get(self.config["api_url"] + path, auth=self.http_auth, params=params, headers=headers)
         if r.ok:
             records = extract_jsonpath(records_path, input=r.json())
         else:
+            self.logger.error(f"Error Connecting, message = {r.text}")
             raise ValueError(r.text)
 
         builder = SchemaBuilder()
         builder.add_schema(th.PropertiesList().to_dict())
         for i, record in enumerate(records):
             if type(record) is not dict:
+                self.logger.error("Input must be a dict object.")
                 raise ValueError("Input must be a dict object.")
 
             flat_record = flatten_json(record, except_keys)
@@ -512,58 +521,3 @@ class TapRestApiMsdk(Tap):
 
         self.logger.debug(f"{builder.to_json(indent=2)}")
         return builder.to_schema()
-
-    @property
-    def authenticator(self) -> APIAuthenticatorBase:
-        """Calls an appropriate SDK Authentication method based on the the set auth_method.
-        If an auth_method is not provided, the tap will call the API using any settings from
-        the headers and params config.
-        Note: Each auth method requires certain configuration to be present see README.md
-        for each auth methods configuration requirements.
-
-        Raises:
-            ValueError: if the auth_method is unknown.
-
-        Returns:
-            A SDK Authenticator or None if no auth_method supplied.
-        """
-
-        auth_method = self.config.get('auth_method', "")
-        api_keys = self.config.get('api_keys', '')
-
-        # Using API Key Authenticator, keys are extracted from api_keys dict
-        if auth_method == "api_key":
-            if api_keys:
-                for k, v in api_keys.items():
-                    key = k
-                    value = v
-            return APIKeyAuthenticator(
-                stream=self,
-                key=key,
-                value=value
-            )
-        # Using Basic Authenticator
-        elif auth_method == "basic":
-            return BasicAuthenticator(
-                stream=self,
-                username=self.config.get('username', ''),
-                password=self.config.get('password', '')
-            )
-        # Using OAuth Authenticator
-        elif auth_method == "oauth":
-            return ConfigurableOAuthAuthenticator(
-                stream=self,
-                auth_endpoint=self.config.get('access_token_url', ''),
-                oauth_scopes=self.config.get('scope', ''),
-                default_expiration=self.config.get('oauth_expiration_secs', ''),
-            )
-        # Using Bearer Token Authenticator
-        elif auth_method == "bearer_token":
-            return BearerTokenAuthenticator(
-                stream=self,
-                token=self.config.get('bearer_token', ''),
-            )
-        else:
-            raise ValueError(
-                f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, or bearer_token."
-            )

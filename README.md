@@ -13,6 +13,7 @@ There are many forms of Authentication supported by this tap. By default for leg
 - API Key
 - Bearer Token
 - OAuth
+- AWS
 
 Please note that OAuthJWTAuthentication has not been developed. If you are interested in contributing this, please fork and make a pull request. 
 
@@ -43,8 +44,18 @@ plugins:
           kind: string
         - name: pagination_response_style
           kind: string
+        - name: use_request_body_not_params
+          kind: boolean
         - name: pagination_page_size
           kind: integer
+        - name: pagination_results_limit
+          kind: integer
+        - name: pagination_next_page_param
+          kind: string
+        - name: pagination_limit_per_page_param
+          kind: string
+        - name: pagination_total_limit_param
+          kind: string
         - name: streams
           kind: array
         - name: name
@@ -67,9 +78,9 @@ plugins:
           kind: integer
         - name: start_date
           kind: date_iso8601
-        - name: search_parameter
+        - name: source_search_field
           kind: string
-        - name: search_prefix
+        - name: source_search_query
           kind: string
         - name: auth_method
           kind: string
@@ -99,6 +110,8 @@ plugins:
           kind: object
         - name: oauth_expiration_secs
           kind: integer
+        - name: aws_credentials
+          kind: object
 ```
 
 ```bash
@@ -122,10 +135,15 @@ Parameters that appear at the stream-level will overwrite their top-level
 counterparts except where noted in the stream-level params. Otherwise, the values
 provided at the top-level will be the default values for each stream.:
 - `api_url`: required: the base url/endpoint for the desired api.
-- `pagination_request_style`: optional: style for requesting pagination, defaults to `default`, see Pagination below.
-- `pagination_response_style`: optional: style of pagination results, defaults to `default`, see Pagination below.
+- `pagination_request_style`: optional: style for requesting pagination, defaults to `default` which is the `jsonpath_paginator`, see Pagination below.
+- `pagination_response_style`: optional: style of pagination results, defaults to `default` which is the `page` style response, see Pagination below.
+- `use_request_body_not_params`: optional: sends the request parameters in the request body. This is normally not required, a few API's like OpenSearch require this. Defaults to `False`"
 - `pagination_page_size`: optional: limit for size of page, defaults to None.
-- `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `$.next_page`.
+- `pagination_results_limit`: optional: limits the max number of records. Note: Will cause an exception if the limit is hit (except for the `restapi_header_link_paginator`). This should be used for development purposes to restrict the total number of records returned by the API. Defaults to None.
+- `pagination_next_page_param`: optional: The name of the param that indicates the page/offset. Defaults to None.
+- `pagination_limit_per_page_param`: optional: The name of the param that indicates the limit/per_page. Defaults to None.
+- `pagination_total_limit_param`: optional: The name of the param that indicates the total limit e.g. total, count. Defaults to total
+- `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `'$.next_page'` for the `jsonpath_paginator` paginator only otherwise None.
 - `streams`: required: a list of objects that contain the configuration of each stream. See stream-level params below.
 - `path`: optional: see stream-level params below.
 - `params`: optional: see stream-level params below.
@@ -136,8 +154,8 @@ provided at the top-level will be the default values for each stream.:
 - `except_keys`: optional: see stream-level params below.
 - `num_inference_keys`: optional: see stream-level params below.
 - `start_date`: optional: see stream-level params below.
-- `search_parameter`: optional: see stream-level params below.
-- `search_prefix`: optional: see stream-level params below.
+- `source_search_field`: optional: see stream-level params below.
+- `source_search_query`: optional: see stream-level params below.
 - `auth_method`: optional: see authentication params below.
 - `api_key`: optional: see authentication params below.
 - `client_id`: optional: see authentication params below.
@@ -152,6 +170,7 @@ provided at the top-level will be the default values for each stream.:
 - `redirect_uri`: optional: see authentication params below.
 - `oauth_extras`: optional: see authentication params below.
 - `oauth_expiration_secs`: optional: see authentication params below.
+- `aws_credentials`: optional: see authentication params below.
 
 #### Stream level config options. 
 Parameters that appear at the stream-level
@@ -175,24 +194,28 @@ will overwrite their top-level counterparts except where noted below:
 - `schema`: optional: A valid Singer schema or a path-like string that provides
   the path to a `.json` file that contains a valid Singer schema. If provided, 
   the schema will not be inferred from the results of an api call.
-- `start_date`: optional: used by the **hateoas_body** request style. This is an initial starting date for an incremental replication if there is no
+- `start_date`: optional: used by the the **offset**, **page**, and **hateoas_body** response styles. This is an initial starting date for an incremental replication if there is no
   existing state provided for an incremental replication. Example format 2022-06-10:23:10:10+1200.
-- `search_parameter`: optional: used by the **hateoas_body** request style. This is a search/query parameter used by the API for an incremental replication. 
-  The difference between the `replication_key` and the `search_parameter` is the search parameter is the field name used in request parameters whereas the 
-  replication_key is the name of the field in the API reponse. Example if the search_paramter = **last-updated** the generate schema from the api 
-  might be **meta_lastUpdated**. The replication_key is set to meta_lastUpdated, and the search_parameter to last-updated.
-- `search_prefix`: optional: used by the **hateoas_body** request style. If used it should be in conjunction with a `search_parameter`. The search prefix is
-  prepended to search parameter to describe the search operation. Example a search_prefix = **gt** means results Greater Than the given search parameter. 
-  Other examples of search parameter **eq** = Equal To, **lt** Less Than. See your API guide for valid search prefixes. Example: search_parameter=last-updated, the 
-  search_prefix = gt, current replication state = 2022-08-10:23:10:10+1200 creates a request parameter **last-updated=gt2022-06-10:23:10:10+1200**.
+- `source_search_field`: optional: used by the **offset**, **page**, and **hateoas_body** response style. This is a search/query parameter used by the API for an incremental replication.
+
+  The difference between the `replication_key` and the `source_search_field` is the search field used in request parameters whereas the replication_key is the name of the field in the API reponse. Example if the source_search_field = **last-updated** the generated schema from the api discovery 
+  might be **meta_lastUpdated**. The replication_key is set to meta_lastUpdated, and the search_parameter to last-updated. Note: Please set the `replication_key`, `start_date`, `source_search_field`, and `source_search_query` parameters all together.
+- `source_search_query`: optional: used by the **offset**, **page**, and **hateoas_body** response style. This is a query template to be issued against the API. A simple query template example for FHIR API's is **gt$last_run_date**.
+
+  A more complex example against an Opensearch API, **{\\"bool\\": {\\"filter\\": [{\\"range\\": { \\"meta.lastUpdated\\": { \\"gt\\": \\"$last_run_date\\" }}}] }}**. Note: Any required double quotes in the query template must be escaped.
+
+  At run-time, the tap will dynamically change the value **$last_run_date** with either the defined `start_date` parameter or the last bookmark / state value.
+  Example: source_search_field=**last-updated**, the 
+  source_search_query = **gt$last_run_date**, and the current replication state = 2022-08-10:23:10:10+1200. At run time this creates a request parameter **last-updated=gt2022-06-10:23:10:10+1200**.
 
 #### Top-Level Authentication config options.
 - `auth_method`: optional: The method of authentication used by the API. Supported options
   include:
   - **oauth**: for OAuth2 authentication
-  - **basic**: Basic Header authorization - base64-encoded username + password config items
+  - **basic**: Basic Header authentication - base64-encoded username + password config items
   - **api_key**: for API Keys in the header e.g. X-API-KEY.
-  - **bearer_token**: for Bearer token authorization.
+  - **bearer_token**: for Bearer token authentication.
+  - **aws**: for AWS authentication. Works with the `aws_credentials` parameter.
   - Defaults to no_auth which will take authentication parameters passed via the headers config.
 - `api_keys`: optional: A dictionary of API Key/Value pairs used by the api_key auth method
   Example: { "X-API-KEY": "my secret value"}.
@@ -225,6 +248,14 @@ will overwrite their top-level counterparts except where noted below:
 - `oauth_expiration_secs`: optional: Used for OAuth2 authentication method. This optional setting
   is a timer for the expiration of a token in seconds. If not set the OAuth will use the default
   expiration set in the token by the authorization server.
+- `aws_credentials`: optional: A object of Key/Value pairs to support AWS authentication when using the AWS authenticator. While the tap can use AWS [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html) environment variables and aws_profiles instead of supplying the keys and region, the [AWS service code](https://docs.aws.amazon.com/general/latest/gr/rande.html) needs to be specified e.g. `es` for OpenSearch / Elastic Search. By default the requirement to use `use_signed_credentials` is set to true. Config example:
+  ```json
+  { "aws_access_key_id": "my_aws_key_id",
+    "aws_secret_access_key": "my_aws_secret_access_key",
+    "aws_region": "us-east-1",
+    "aws_service": "es",
+    "use_signed_credentials": true}
+  ```
 
 #### Complex Authentication
 
@@ -247,29 +278,42 @@ Example:
 - headers = '{"x-api-key": "my_secret_api_key", "Request-Context": "my_example_Base64_encoded_json_object"}'
 
 ## Pagination
-API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented.
+API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented. Where possible, this tap utilises the Meltano SDK paginators https://sdk.meltano.com/en/latest/reference.html#pagination . 
 
 ### Default Request Style
-The default request style for pagination is described below:
-- Use next_page_token_path if provided to extract the token from response if found; otherwise
-- use X-Next-Page header from response
+The default request style for pagination is using a `JSONPath Paginator` to locate the next page token.
 
 ### Default Response Style
 The default response style for pagination is described below:
 - If there is a token, add that as a `page` URL parameter.
 
-### Additional Request Styles
+### Additional Request / Paginator Styles
 There are additional request styles supported as follows for pagination.
-- `style1` - This style uses URL parameters named offset and limit
+- `jsonpath_paginator` or `default` - This style obtains the token for the next page from a specific location in the response body via JSONPath notation. In many situations the `jsonpath_paginator` is a more appropriate paginator to the `hateoas_paginator`.
+  - `next_page_token_path` - The jsonpath to next page token. Example: `"$['@odata.nextLink']"`, this locates the token returned via the Microsoft Graph API. Default `'$.next_page'` for the `jsonpath_paginator` paginator only otherwise None.
+- `offset_paginator` or `style1` - This style uses URL parameters named offset and limit
   - `offset` is calculated from the previous response, or not set if there is no previous response
-  - `limit` is set to the `pagination_page_size` value, if specified, or not set
-- `hateoas_body` - This style parses the next_token response for the parameters to pass.
-  - The parameters are dynamic
-  - Is used by API's utilising the HATEOAS Rest style [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS), including [FHIR API's](https://hl7.org/fhir/http.html).
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
+  - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `limit`.
+  - `pagination_total_limit_param` - The name of the param that indicates the total limit e.g. total, count. Defaults to total
+  - `next_page_token_path` - Used to locate an appropriate link in the response. Default None - but looks in the `pagination` section of the JSON response by default. Example, jsonpath to get the offset from the NOAA API `'$.metadata.resultset'`.
+- `simple_header_paginator` - This style uses links in the Header Response to locate the next page. Example the `x-next-page` link used by the Gitlab API.
+- `header_link_paginator` - This style uses the default header link paginator from the Meltano SDK.
+- `restapi_header_link_paginator` - This style is a variant on the header_link_paginator. It supports the ability to read from GitHub API.
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
+  - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `per_page`.
+  - `pagination_results_limit` - Restricts the total number of records returned from the API. Default None i.e. no limit.
+- `hateoas_paginator` - This style parses the next_token response for the parameters to pass. It is used by API's utilising the HATEOAS Rest style [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS), including [FHIR API's](https://hl7.org/fhir/http.html).
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default None.
+  - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page e.g. `_count` for [FHIR API's](https://hl7.org/fhir/http.html). Default None.
+- `single_page_paginator` - A paginator that does works with single-page endpoints.
+- `page_number_paginator` - Paginator class for APIs that use page number. Looks at the response link to determine more pages.
+  - `next_page_token_path` - Use to locate an appropriate link in the response. Default `"hasMore"`.
 
 ### Additional Response Styles
 There are additional response styles supported as follows.
-- `style1` - This style retrieves pagination information from the `pagination` top-level element in the response.  Expected format is as follows:
+- `default` or `page` - This style uses page style offsets params to identify the next page.
+- `offset` or `style1` - This style retrieves pagination information by default from the `pagination` top-level element in the response.  Expected format is as follows:
     ```json
     "pagination": {
         "total": 136,
@@ -277,13 +321,25 @@ There are additional response styles supported as follows.
         "offset": 2
     }
     ```
-  The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as total and offset to calculate the next token value.
+  The next page token, which in this case is really the next starting record number, is calculated by the limit, current offset, or None is returned to indicate no more data.  For this style, the response style _must_ include the limit in the response, even if none is specified in the request, as well as ( `total` or `count` ) and offset to calculate the next token value.
 
+  It is expected that this API Response Style will be used with request style of `offset_paginator` or `style1`.
+  - The `next_page_token_jsonpath` can be used to provide a JSONPath location to the pagination location e.g. `'$.metadata.resultset'`. Default `pagination` from the tap-level element in the response.
+- `header_link` - This style parses the next page link in the Header Response. It is expected that this response will be used with an appropriate request style e.g. `restapi_header_link_paginator`.
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
+  - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `per_page`.
+  - `pagination_results_limit` - Restricts the total number of records returned from the API. Default None i.e. no limit.
 - `hateoas_body` - This style requires a well crafted `next_page_token_path` configuration 
-  parameter to retrieve the request parameters from the GET request response for a subsequent request. The following example extracts the URL for the next pagination page.
+  parameter to retrieve the request parameters from the GET request response for a subsequent request.
+  
+### JSON Path for extracting tokens
+  The `next_page_token_path` and `records_path` use JSONPath to locate sections within the request reponse.
+
+  The following example extracts the URL for the next pagination page.
     ```json
     "next_page_token_path": "$.link[?(@.relation=='next')].url."
     ```
+
   The following example demonstrates the power of JSONPath extensions by further splitting the URL and extracting just the parameters. Note: This is not required for FHIR API's but is provided for illustration of added functionality for complex use cases.
     ```json
     "next_page_token_path": "$.link[?(@.relation=='next')].url.`split(?, 1, 1)`"
@@ -329,7 +385,156 @@ There are additional response styles supported as follows.
   "records_path": "$.entry[*].resource"
   ```
 
+## Example settings for different API's
+
+This section provides examples of settings for accessing different API's. The tap configuration examples are provide in the form of environment variables. You could easily provide a configuration file [config.json](config.sample.json) instead of environment variables.
+
+Where config values have with `<removed .. >` replace the text with your Authentication and API config.
+
+### Microsoft Graph API v1.0
+
+This example uses the `jsonpath paginator`. In this example, it requires a Microsoft Azure AD admin to register an APP to obtain an OAuth Token to perform an OAuth flow with the Microsoft Graph API. The details below may be different based on your setup, adjust accordingly.
+
+Result: Two streamed datasets, one `whoami` a simple json response about yourself, two a sharepoint list `my_sharepoint_list`.
+
+```
+# Access MSOFFICE objects via the GraphAPI
+export TAP_REST_API_MSDK_API_URL=https://graph.microsoft.com
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="jsonpath_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="hateoas_body"
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH="$['@odata.nextLink']"
+export TAP_REST_API_MSDK_START_DATE="2001-01-01T00:00:00.00+12:00"
+export TAP_REST_API_MSDK_AUTH_METHOD="oauth"
+export TAP_REST_API_MSDK_USERNAME="<removed place in UPN/email address>"
+export TAP_REST_API_MSDK_PASSWORD="<removed place in password>"
+export TAP_REST_API_MSDK_GRANT_TYPE="password"
+export TAP_REST_API_MSDK_ACCESS_TOKEN_URL="https://login.microsoftonline.com/<removed place in Azure AAD APP ID>/oauth2/v2.0/token"
+export TAP_REST_API_MSDK_CLIENT_ID="<removed place in OAuth Client ID>"
+export TAP_REST_API_MSDK_CLIENT_SECRET="<removed place in OAuth Client Secret>"
+export TAP_REST_API_MSDK_SCOPE="<removed place in client scope url e.g. https://graph.microsoft.com/user.read>"
+export TAP_REST_API_MSDK_STREAMS='[{"name": "whoami", "path": "/v1.0/me", "primary_keys": ["id"]},{"name": "my_sharepoint_list", "path": "/v1.0/sites/<removed place in SharePoint Site ID>/Lists/<removed place in SharePoint list id>/items/?expand=columns,items(expand=fields)", "primary_keys": ["id"], "records_path": "$.value[*].fields"}]'
+```
+
+### Gitlab API
+
+This example uses the `simple header paginator` and returns 50 records from the Gitlab API for Projects. Note: There is an exception raised due to the 50 record limit - this is an example hence the limit.
+
+```
+# Access Gitlab projects via the GitLab API
+export TAP_REST_API_MSDK_API_URL=https://gitlab.com/api/v4/projects
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="simple_header_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESULTS_LIMIT=50
+export TAP_REST_API_MSDK_STREAMS='[{"name": "gitlab_projects", "primary_keys": ["id"]}]'
+```
+
+You could authenticate to Gitlab using a Personal Access Token (PAT) by adding this config.
+```
+export TAP_REST_API_MSDK_HEADERS='{"Authorization": "Bearer <removed PAT bearer token>"}'
+```
+
+### GitHub API
+
+This example uses the `headerlink paginator` and returns approximately 250 records from the GitHub API for Projects.
+
+```
+# Access GitHub users via the GitHub API
+export TAP_REST_API_MSDK_API_URL=https://api.github.com/users
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="restapi_header_link_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="header_link"
+export TAP_REST_API_MSDK_PAGINATION_PAGE_SIZE=50
+export TAP_REST_API_MSDK_PAGINATION_RESULTS_LIMIT=250
+export TAP_REST_API_MSDK_STREAMS='[{"name": "github_users", "primary_keys": ["id"]}]'
+```
+
+You could authenticate to GitHub using a Personal Access Token (PAT) by adding this config.
+```
+export TAP_REST_API_MSDK_HEADERS='{"Authorization": "Bearer <removed PAT bearer token>"}'
+```
+
+### FHIR API
+
+This example uses the `jsonpath paginator` to access a FHIR API. It uses the `hateoas response style` to process the next tokens.
+
+This particular configuration will do an intial load of all data for a given resource defined in the `streams` config from the 01-Jan-2001. It will in subsequent runs incrementally pull changed data based on the lastUpdated timestamp by searching for records greater than the highest last updated timestamp. In this example the PlanDefinition FHIR resource is being extracted.
+
+You will need appropriate OAuth Token details provided by the Administrator of the API.
+
+```
+export TAP_REST_API_MSDK_API_URL=<remove put in the FHIR API url>
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="jsonpath_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="hateoas_body"
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH="$.link[?(@.relation=='next')].url"
+export TAP_REST_API_MSDK_START_DATE="2001-01-01T00:00:00.00+12:00"
+export TAP_REST_API_MSDK_AUTH_METHOD="oauth"
+export TAP_REST_API_MSDK_GRANT_TYPE="client_credentials"
+export TAP_REST_API_MSDK_ACCESS_TOKEN_URL="https://login.microsoftonline.com/<removed place in Azure AAD APP ID>/oauth2/v2.0/token"
+export TAP_REST_API_MSDK_CLIENT_ID="<removed place in OAuth Client ID>"
+export TAP_REST_API_MSDK_CLIENT_SECRET="<removed place in OAuth Client Secret>"
+export TAP_REST_API_MSDK_SCOPE="<removed place in client scope url>"
+export TAP_REST_API_MSDK_STREAMS='[{"name":"plan_definition","path":"/PlanDefinition","primary_keys":["id"],"records_path":"$.entry[*].resource","replication_key":"meta_lastUpdated","search_parameter":"_lastUpdated","source_search_query": "gt$last_run_date"}]'
+```
+
+### NOAA API Example
+
+This example uses the `offset paginator` to access the NOAA API to return location categories. In this example the offset tokens are not in the default location of `pagination` so the `next_page_token_path` is set to the NOAA API offset location in the json response i.e. `'$.metadata.resultset'`. This example also sets a limit parameter in the `streams` to only return 5 records at a time to prove the pagination is working.
+
+```
+# Access Locations Categories objects via the NOAA API
+export TAP_REST_API_MSDK_API_URL=https://www.ncei.noaa.gov/cdo-web/api/v2
+export TAP_REST_API_MSDK_HEADERS='{"token": "<enter NOAA token>"}'
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH='$.metadata.resultset'
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="offset_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="style1"
+export TAP_REST_API_MSDK_PAGINATION_TOTAL_LIMIT_PARAM="count"
+export TAP_REST_API_MSDK_STREAMS='[{"name": "locationcategories", "params": {"limit": "5"}, "path": "/locationcategories", "primary_keys": ["id"], "records_path": "$.results[*]"}]'
+```
+
+### dbt Cloud API Example
+
+This example uses the `offset paginator` to access the dbt Cloud API to return location categories. In this example the offset tokens are not in the default location of `pagination` so the `next_page_token_path` is set to the dbt API offset location in the json response i.e. `'$.extra'`. This example also sets the streams record_path to `"$.data[*]"` which is the location of the data.
+
+```
+# Access Locations Categories objects via the dbt Cloud API
+# Access Gitlab objects via the dbt Cloud API
+export TAP_REST_API_MSDK_API_URL=https://<removed your url>.getdbt.com/api/v2/accounts/<removed account id>
+export TAP_REST_API_MSDK_HEADERS='{"Authorization": "Bearer <removed place in bearer token>"}'
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH='$.extra'
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="offset_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="style1"
+export TAP_REST_API_MSDK_PAGINATION_TOTAL_LIMIT_PARAM="total_count"
+export TAP_REST_API_MSDK_STREAMS='[{"name": "jobs", "path": "/jobs", "primary_keys": ["id"], "records_path": "$.data[*]"}]'
+```
+
+### AWS OpenSearch API Example
+
+This complex example uses the [AWS4Auth](https://github.com/tedder/requests-aws4auth) authenticator to provide signed AWS credentials in the requests to the AWS OpenSearch API endpoint. The `auth_method` is set to 'aws', and the required `aws_credentials` are provided.
+
+Note: The AWS authentication does support [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html) environment variables and aws_profiles.
+
+For pagination, the next page token is located in the **last** returned record. Using JSON Path the appropriate token response can be extracted via '$.hits.hits[-1:].sort' (-1 selects the last record in the array) and this is set in the `next_page_token_path` config setting. The API parameter used to select the next page is 'search_after' and this is set in the `pagination_next_page_param` config setting. To enable pagination in OpenSearch an API parameter named 'sort' must be set to a unique key e.g. '_id'. The number of records to returned per page is controlled via an API parameter called 'size'.
+
+The OpenSearch API has a complex incremental replication query which must be sent in the request body. This is enabled by setting the `use_request_body_not_params` to True.
+
+Finally set the replication suite of config settings ( `start_date`, `replication_key`, `source_search_field`, and `source_search_query` ) to enable incremental replication of data since the last run. For OpenSearch there is a complex query template which must be set in the streams `source_search_query` config setting.
+
+Unlike most API requests, the API query is against an API parameter named `query` rather than the name of the API field. For this reason the `source_search_field` is set to 'query' in the streams array. Additionally, the streams record_path to `"$.hits.hits[*]"` which is the location of the records in the requests response.
+
+```
+# Access AWS objects via the AWS Open/Elastic Search API
+export TAP_REST_API_MSDK_API_URL="https://<endpoint>.<aws region>.<aws service>.amazonaws.com"
+export TAP_REST_API_MSDK_AWS_CREDENTIALS='{"aws_access_key_id": "<removed aws access key id>", "aws_secret_access_key": "removed aws secret access key>", "aws_region": "<aws region e.g. us‑east‑1>", "aws_service": "<aws service e.g. es for opensearch>", "create_signed_credentials": true}'
+export TAP_REST_API_MSDK_START_DATE="2001-01-01T00:00:00.00+12:00"
+export TAP_REST_API_MSDK_PAGINATION_REQUEST_STYLE="jsonpath_paginator"
+export TAP_REST_API_MSDK_PAGINATION_RESPONSE_STYLE="offset"
+export TAP_REST_API_MSDK_USE_REQUEST_BODY_NOT_PARAMS=true
+export TAP_REST_API_MSDK_NEXT_PAGE_TOKEN_PATH='$.hits.hits[-1:].sort'
+export TAP_REST_API_MSDK_PAGINATION_NEXT_PAGE_PARAM="search_after"
+export TAP_REST_API_MSDK_AUTH_METHOD='aws'
+export TAP_REST_API_MSDK_STREAMS='[{"name": "careplan", "params": {"size": 100, "sort": "_id"}, "path": "/careplan/_search", "primary_keys": [], "records_path": "$.hits.hits[*]", "replication_key": "_source_meta_lastUpdated", "source_search_field": "query", "source_search_query": "{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": \"$last_run_date\" }}}] }}"}]'
+```
+
 ## Usage
+
 
 You can easily run `tap-rest-api-msdk` by itself or in a pipeline using [Meltano](www.meltano.com).
 

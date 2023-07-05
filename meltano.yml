@@ -18,8 +18,18 @@ plugins:
           kind: string
         - name: pagination_response_style
           kind: string
+        - name: use_request_body_not_params
+          kind: boolean
         - name: pagination_page_size
           kind: integer
+        - name: pagination_results_limit
+          kind: integer
+        - name: pagination_next_page_param
+          kind: string
+        - name: pagination_limit_per_page_param
+          kind: string
+        - name: pagination_total_limit_param
+          kind: string
         - name: streams
           kind: array
         - name: path
@@ -40,9 +50,9 @@ plugins:
           kind: integer
         - name: start_date
           kind: date_iso8601
-        - name: search_parameter
+        - name: source_search_field
           kind: string
-        - name: search_prefix
+        - name: source_search_query
           kind: string
         - name: auth_method
           kind: string
@@ -72,6 +82,8 @@ plugins:
           kind: object
         - name: oauth_expiration_secs
           kind: integer
+        - name: aws_credentials
+          kind: object
       config:
         api_url: https://earthquake.usgs.gov/fdsnws
         records_path: "$.features[*]"
