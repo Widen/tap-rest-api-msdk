@@ -20,7 +20,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "<3.12,>=3.7.1"
 requests = "^2.25.1"
-singer-sdk = "^0.26.0"
+#singer-sdk = "^0.26.0"
 singer-sdk = { git = "https://github.com/s7clarke10/sdk.git", branch = "feature/support_headers_when_requesting_oauth_token" }
 genson = "^1.2.2"
 atomicwrites = "^1.4.0"
