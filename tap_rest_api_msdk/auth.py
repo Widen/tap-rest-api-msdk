@@ -5,7 +5,12 @@ from typing import Any
 
 import boto3
 from requests_aws4auth import AWS4Auth
-from singer_sdk.authenticators import APIKeyAuthenticator, BasicAuthenticator, BearerTokenAuthenticator, OAuthAuthenticator
+from singer_sdk.authenticators import (
+    APIKeyAuthenticator,
+    BasicAuthenticator,
+    BearerTokenAuthenticator,
+    OAuthAuthenticator
+)
 
 class AWSConnectClient:
     """A connection class to AWS Resources"""
@@ -195,6 +200,11 @@ def select_authenticator(self) -> Any:
     api_keys = my_config.get('api_keys', '')
     self.http_auth = None
 
+    # Set http headers if headers are supplied
+    # Some OAUTH2 API's require headers to be supplied
+    # In the OAUTH request.
+    auth_headers = my_config.get('headers',None)
+
     # Using API Key Authenticator, keys are extracted from api_keys dict
     if auth_method == "api_key":
         if api_keys:
@@ -220,6 +230,7 @@ def select_authenticator(self) -> Any:
             auth_endpoint=my_config.get('access_token_url', ''),
             oauth_scopes=my_config.get('scope', ''),
             default_expiration=my_config.get('oauth_expiration_secs', ''),
+            auth_headers=auth_headers,
         )
     # Using Bearer Token Authenticator
     elif auth_method == "bearer_token":
