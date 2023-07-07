@@ -230,7 +230,7 @@ def select_authenticator(self) -> Any:
             auth_endpoint=my_config.get('access_token_url', ''),
             oauth_scopes=my_config.get('scope', ''),
             default_expiration=my_config.get('oauth_expiration_secs', ''),
-            auth_headers=auth_headers,
+            oauth_headers=auth_headers,
         )
     # Using Bearer Token Authenticator
     elif auth_method == "bearer_token":
