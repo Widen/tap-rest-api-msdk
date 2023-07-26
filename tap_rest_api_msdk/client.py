@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import Any
 
-from memoization import cached
 from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
 from tap_rest_api_msdk.auth import select_authenticator
@@ -16,7 +15,7 @@ class RestApiStream(RESTStream):
 
     # Intialise self.http_auth used by prepare_request
     http_auth = None
-    # Cache the authenticator using a Smart Singleton pattern 
+    # Cache the authenticator using a Smart Singleton pattern
     _authenticator = None
 
     @property
@@ -28,18 +27,19 @@ class RestApiStream(RESTStream):
 
         """
         return self.config["api_url"]
-      
 
     @property
     def authenticator(self) -> Any:
-        """Calls an appropriate SDK Authentication method based on the the set auth_method
-        which is set via the config.
-        If an authenticator (auth_method) is not specified, REST-based taps will simply pass
-        `http_headers` as defined in the tap and stream classes.
-        
-        Note 1: Each auth method requires certain configuration to be present see README.md
-        for each auth methods configuration requirements.
-        
+        """Call an appropriate SDK Authentication method.
+
+        Calls an appropriate SDK Authentication method based on the the set
+        auth_method which is set via the config.
+        If an authenticator (auth_method) is not specified, REST-based taps will simply
+        pass `http_headers` as defined in the tap and stream classes.
+
+        Note 1: Each auth method requires certain configuration to be present see
+        README.md for each auth methods configuration requirements.
+
         Note 2: Using Singleton Pattern on the autenticator for caching with a check
         if an OAuth Token has expired and needs to be refreshed.
 
@@ -48,16 +48,16 @@ class RestApiStream(RESTStream):
 
         Returns:
             A SDK Authenticator or APIAuthenticatorBase if no auth_method supplied.
-        """
 
-        auth_method = self.config.get("auth_method",None)
+        """
+        auth_method = self.config.get("auth_method", None)
 
         if not self._authenticator:
-            self._authenticator = select_authenticator(self)         
+            self._authenticator = select_authenticator(self)
             if not self._authenticator:
                 # No Auth Method, use default Authenticator
-                self._authenticator = APIAuthenticatorBase(stream=self)           
-        elif auth_method == 'oauth':
+                self._authenticator = APIAuthenticatorBase(stream=self)
+        elif auth_method == "oauth":
             if not self._authenticator.is_token_valid():
                 # Obtain a new OAuth token as it has expired
                 self._authenticator = select_authenticator(self)

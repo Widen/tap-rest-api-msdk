@@ -64,7 +64,8 @@ def flatten_json(obj: dict, except_keys: Optional[list] = None) -> dict:
 
     flatten(obj, exception_keys=except_keys)
     return out
-    
+
+
 def unnest_dict(d):
     """Flattens a dict object by create a new object with the key value pairs.
 
@@ -78,19 +79,18 @@ def unnest_dict(d):
 
     """
     result = {}
-    for k,v in d.items():
+    for k, v in d.items():
         if isinstance(v, dict):
             result.update(unnest_dict(v))
         else:
             result[k] = v
     return result
 
-def get_start_date(
-    self,
-    context: dict
-) -> Any:
-    """Returns a start date if a DateTime bookmark is available.
-    Otherwise it returns the starting date as defined in 
+
+def get_start_date(self, context: Optional[dict]) -> Any:
+    """Return a start date if a DateTime bookmark is available.
+
+    Otherwise it returns the starting date as defined in
     the start_date parameter.
 
     Args:

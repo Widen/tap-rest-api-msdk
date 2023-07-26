@@ -1,20 +1,22 @@
 """REST API pagination handling."""
 from typing import Any, Optional, cast
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 import requests
 from dateutil.parser import parse
 from singer_sdk.helpers.jsonpath import extract_jsonpath
-from singer_sdk.pagination import BaseOffsetPaginator, HeaderLinkPaginator, BasePageNumberPaginator
+from singer_sdk.pagination import (
+    BaseOffsetPaginator,
+    BasePageNumberPaginator,
+    HeaderLinkPaginator,
+)
 from tap_rest_api_msdk.utils import unnest_dict
 
+
 class RestAPIBasePageNumberPaginator(BasePageNumberPaginator):
-    def __init__(
-        self,
-        *args,
-        jsonpath: str = None,
-        **kwargs
-    ):
+    """REST API Base Page Number Paginator."""
+
+    def __init__(self, *args, jsonpath=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._jsonpath = jsonpath
 
@@ -28,20 +30,19 @@ class RestAPIBasePageNumberPaginator(BasePageNumberPaginator):
 
         Returns:
             Whether there are more pages to fetch.
+
         """
-        
         if self._jsonpath:
             return next(extract_jsonpath(self._jsonpath, response.json()), None)
         else:
             return response.json().get("hasMore", None)
 
+
 class RestAPIOffsetPaginator(BaseOffsetPaginator):
+    """REST API Offset Paginator."""
+
     def __init__(
-        self,
-        *args,
-        jsonpath: str = None,
-        pagination_total_limit_param: str,
-        **kwargs
+        self, *args, jsonpath=None, pagination_total_limit_param: str, **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.jsonpath = jsonpath
@@ -57,8 +58,8 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
 
         Returns:
             Whether there are more pages to fetch.
+
         """
-        
         if self.jsonpath:
             pagination = next(extract_jsonpath(self.jsonpath, response.json()), None)
         else:
@@ -67,14 +68,17 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
             pagination = unnest_dict(pagination)
 
         if pagination and all(x in pagination for x in ["offset", "limit"]):
-            record_limit = pagination.get(self.pagination_total_limit_param,0)
+            record_limit = pagination.get(self.pagination_total_limit_param, 0)
             records_read = pagination["offset"] + pagination["limit"]
             if records_read <= record_limit:
                 return True
 
         return False
 
+
 class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
+    """REST API Header Link Paginator."""
+
     def __init__(
         self,
         *args,
@@ -90,14 +94,14 @@ class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
         self.use_fake_since_parameter = use_fake_since_parameter
         self.replication_key = replication_key
 
-    def get_next_url(
-        self, response: requests.Response
-    ) -> Optional[Any]:
-        """Return next page parameter(s) for identifying the next page
+    def get_next_url(self, response: requests.Response) -> Optional[Any]:
+        """Return next page parameter(s).
+
+        Return next page parameter(s) for identifying the next page
            or None if no more pages.
-           
+
            Logic based on https://github.com/MeltanoLabs/tap-github
-           
+
         Args:
             response: The most recent response object.
             pagination_page_size: A limit for records per page. Default=25
@@ -107,23 +111,25 @@ class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
 
         Returns:
             Page Parameters if there are more pages to fetch, else None.
+
         """
         # Exit if the set Record Limit is reached.
         if (
             self._page_count
             and self.pagination_results_limit
             and (
-                cast(int, self._page_count) * self.pagination_page_size >= self.pagination_results_limit
+                cast(int, self._page_count) * self.pagination_page_size
+                >= self.pagination_results_limit
             )
         ):
             return None
-          
+
         # Leverage header links returned by the GitHub API.
         if "next" not in response.links.keys():
             return None
 
         # Exit early if there is no URL in the next links
-        if not response.links.get("next",{}).get("url"):
+        if not response.links.get("next", {}).get("url"):
             return None
 
         resp_json = response.json()
@@ -132,14 +138,16 @@ class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
         else:
             results = resp_json.get("items")
 
-        # Exit early if the response has no items. ? Maybe duplicative the "next" link check.
+        # Exit early if the response has no items. ? Maybe duplicative the "next" link
+        # check.
         if not results:
             return None
-          
-        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
-        # the "since" parameter out of the box. So we use a workaround here to exit early.
-        # For such streams, we sort by descending dates (most recent first), and paginate
-        # "back in time" until we reach records before our "fake_since" parameter.
+
+        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do
+        # not support the "since" parameter out of the box. So we use a workaround here
+        # to exit early. For such streams, we sort by descending dates (most recent
+        # first), and paginate "back in time" until we reach records before our
+        # "fake_since" parameter.
         if self.replication_key and self.use_fake_since_parameter:
             request_parameters = parse_qs(str(urlparse(response.request.url).query))
             # parse_qs interprets "+" as a space, revert this to keep an aware datetime
@@ -158,7 +166,8 @@ class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
                 else None
             )
 
-            # commit_timestamp is a constructed key which does not exist in the raw response
+            # commit_timestamp is a constructed key which does not exist in the raw
+            # response
             replication_date = (
                 results[-1][self.replication_key]
                 if self.replication_key != "commit_timestamp"
@@ -176,6 +185,6 @@ class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
         parsed_url = urlparse(response.links["next"]["url"])
 
         if parsed_url.query:
-            return(parsed_url.query)
-          
+            return parsed_url.query
+
         return None
