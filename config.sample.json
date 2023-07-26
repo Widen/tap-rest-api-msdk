@@ -1,0 +1,27 @@
+{
+    "pagination_request_style": "jsonpath_paginator",
+    "pagination_response_style": "hateoas_body",
+    "api_url": "https://myexample_fhir_api_url/base_folder",
+    "pagination_page_size": 100,
+    "next_page_token_path": "$.link[?(@.relation=='next')].url",
+    "headers": {
+        "X-API-KEY": "my_secret_hex_string_for_authentication"
+    },
+    "streams": [
+        {
+            "name": "my_sample_table_name",
+            "path": "/ExampleService",
+            "params": {
+                "services-provided-type": "MY_INITIAL_EXAMPLE_SERVICE"
+            },
+            "primary_keys": [
+                "id"
+            ],
+            "records_path": "$.entry[*].resource",
+            "replication_key": "meta_lastUpdated",
+            "start_date": "2001-01-01T00:00:00.00+12:00",            
+            "source_search_field": "last-updated",
+            "source_search_query": "gt$last_run_date"
+        }
+    ]
+}

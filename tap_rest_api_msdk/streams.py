@@ -1,11 +1,30 @@
 """Stream type classes for tap-rest-api-msdk."""
 
+import json
+from datetime import datetime
 from typing import Any, Dict, Iterable, Optional
+from string import Template
 
+import email.utils
 import requests
 from singer_sdk.helpers.jsonpath import extract_jsonpath
+from singer_sdk.pagination import SinglePagePaginator, BaseHATEOASPaginator, JSONPathPaginator, HeaderLinkPaginator, SimpleHeaderPaginator
+from urllib.parse import urlparse, parse_qsl, parse_qs
 from tap_rest_api_msdk.client import RestApiStream
-from tap_rest_api_msdk.utils import flatten_json
+from tap_rest_api_msdk.pagination import RestAPIHeaderLinkPaginator, RestAPIOffsetPaginator, RestAPIBasePageNumberPaginator
+from tap_rest_api_msdk.utils import flatten_json, get_start_date
+
+# Remove commented section to show http_request for debugging
+#import logging
+#import http.client
+
+#http.client.HTTPConnection.debuglevel = 1
+
+#logging.basicConfig()
+#logging.getLogger().setLevel(logging.DEBUG)
+#requests_log = logging.getLogger("requests.packages.urllib3")
+#requests_log.setLevel(logging.DEBUG)
+#requests_log.propagate = True
 
 
 class DynamicStream(RestApiStream):
@@ -27,6 +46,14 @@ class DynamicStream(RestApiStream):
         pagination_request_style: str = "default",
         pagination_response_style: str = "default",
         pagination_page_size: Optional[int] = None,
+        pagination_results_limit: Optional[int] = None,
+        pagination_next_page_param: Optional[str] = None,
+        pagination_limit_per_page_param: Optional[str] = None,
+        pagination_total_limit_param: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        source_search_field: Optional[str] = None,
+        source_search_query: Optional[str] = None,
+        use_request_body_not_params: Optional[bool] = False,
     ) -> None:
         """Class initialization.
 
@@ -45,6 +72,14 @@ class DynamicStream(RestApiStream):
             pagination_request_style: see tap.py
             pagination_response_style: see tap.py
             pagination_page_size: see tap.py
+            pagination_results_limit: see tap.py
+            pagination_next_page_param: see tap.py
+            pagination_limit_per_page_param: see tap.py
+            pagination_total_limit_param: see tap.py
+            start_date: see tap.py
+            source_search_field: see tap.py
+            source_search_query: see tap.py
+            use_request_body_not_params: see tap.py
 
         """
         super().__init__(tap=tap, name=tap.name, schema=schema)
@@ -60,18 +95,72 @@ class DynamicStream(RestApiStream):
         self.replication_key = replication_key
         self.except_keys = except_keys
         self.records_path = records_path
-        self.next_page_token_jsonpath = (
-            next_page_token_path  # Or override `get_next_page_token`.
-        )
-        self.pagination_page_size = pagination_page_size
-        get_url_params_styles = {"style1": self._get_url_params_style1}
-        self.get_url_params = get_url_params_styles.get(  # type: ignore
-            pagination_response_style, self._get_url_params_default
-        )
-        get_next_page_token_styles = {"style1": self._get_next_page_token_style1}
-        self.get_next_page_token = get_next_page_token_styles.get(  # type: ignore
-            pagination_response_style, self._get_next_page_token_default
-        )
+        if next_page_token_path:
+            self.next_page_token_jsonpath = next_page_token_path
+        elif pagination_request_style == 'jsonpath_paginator' or pagination_request_style == 'default':
+            self.next_page_token_jsonpath = "$.next_page" # Set default for jsonpath_paginator
+        get_url_params_styles = {"style1": self._get_url_params_offset_style,
+                                 "offset": self._get_url_params_offset_style,
+                                 "page": self._get_url_params_page_style,
+                                 "header_link": self._get_url_params_header_link,
+                                 "hateoas_body": self._get_url_params_hateoas_body}
+                                 
+        # Selecting the appropriate method to send Parameters as part of the
+        # request. If use_request_body_not_params is set the parameters are sent
+        # in the request body instead of request parameters. The 
+        # pagination_response_style config determines what style of parameter 
+        # processing is invoked.
+
+        self.use_request_body_not_params = use_request_body_not_params
+        if self.use_request_body_not_params:
+            self.prepare_request_payload = get_url_params_styles.get(  # type: ignore
+                pagination_response_style, self._get_url_params_page_style
+            ) # Defaults to page_style url_params
+        else:
+            self.get_url_params = get_url_params_styles.get(  # type: ignore
+                pagination_response_style, self._get_url_params_page_style
+            ) # Defaults to page_style url_params
+
+        self.pagination_request_style = pagination_request_style
+        self.pagination_results_limit = pagination_results_limit
+        self.pagination_next_page_param = pagination_next_page_param
+        self.pagination_limit_per_page_param = pagination_limit_per_page_param
+        self.pagination_total_limit_param = pagination_total_limit_param
+        self.start_date = start_date
+        self.source_search_field = source_search_field
+        self.source_search_query = source_search_query
+        
+        # Setting Pagination Limits
+        if self.pagination_request_style == 'restapi_header_link_paginator':
+            if pagination_page_size:
+                self.pagination_page_size = pagination_page_size
+            else:
+                if self.pagination_limit_per_page_param:
+                    page_limit_param = self.pagination_limit_per_page_param
+                else:
+                    page_limit_param = "per_page"
+                self.pagination_page_size = int(self.params.get(page_limit_param, 25)) # Default to requesting 25 records
+        elif self.pagination_request_style == 'style1' or self.pagination_request_style == 'offset_paginator':
+            if self.pagination_results_limit:
+                self.ABORT_AT_RECORD_COUNT = self.pagination_results_limit # Will raise an exception.
+            if pagination_page_size:
+                self.pagination_page_size = pagination_page_size
+            else:
+                if self.pagination_limit_per_page_param:
+                    page_limit_param = self.pagination_limit_per_page_param
+                else:
+                    page_limit_param = "limit"
+                self.pagination_page_size = int(self.params.get(page_limit_param, 25)) # Default to requesting 25 records
+        else:
+            if self.pagination_results_limit:
+                self.ABORT_AT_RECORD_COUNT = self.pagination_results_limit # Will raise an exception.
+            self.pagination_page_size = pagination_page_size
+
+        # GitHub is missing the "since" parameter on a few endpoints
+        # set this parameter to True if your stream needs to navigate data in descending order
+        # and try to exit early on its own.
+        # This only has effect on streams whose `replication_key` is `updated_at`.
+        self.use_fake_since_parameter = False
 
     @property
     def http_headers(self) -> dict:
@@ -93,59 +182,45 @@ class DynamicStream(RestApiStream):
 
         return headers
 
-    def _get_next_page_token_default(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[str]:
-        """Return a token for identifying next page or None if no more pages.
 
-        This method follows the default style of getting the next page token from the
-        default path provided in the config or, if that doesn't exist, the header.
-
-        Args:
-            response: the requests.Response given by the api call.
-            previous_token: optional - the token representing the current/previous page
-                of results.
+    def get_new_paginator(self):
+        """Return the requested paginator required to retrieve all data from the API.
 
         Returns:
-              A str representing the next page to be queried or `None`.
+              Paginator Class.
 
         """
-        if self.next_page_token_jsonpath:
-            all_matches = extract_jsonpath(
-                self.next_page_token_jsonpath, response.json()
-            )
-            first_match = next(iter(all_matches), None)
-            next_page_token = first_match
+
+        self.logger.info(f"the next_page_token_jsonpath = {self.next_page_token_jsonpath}.")
+
+        if self.pagination_request_style == 'jsonpath_paginator' or self.pagination_request_style == 'default':
+            return JSONPathPaginator(self.next_page_token_jsonpath)
+        elif self.pagination_request_style == 'simple_header_paginator': # Example Gitlab.com
+            return SimpleHeaderPaginator('X-Next-Page')
+        elif self.pagination_request_style == 'header_link_paginator':
+            return HeaderLinkPaginator()
+        elif self.pagination_request_style == 'restapi_header_link_paginator': # Example GitHub.com
+            return RestAPIHeaderLinkPaginator(pagination_page_size=self.pagination_page_size,
+                                              pagination_results_limit=self.pagination_results_limit,
+                                              replication_key=self.replication_key)
+        elif self.pagination_request_style == 'style1' or self.pagination_request_style == 'offset_paginator':
+            return RestAPIOffsetPaginator(start_value=1,
+                                          page_size=self.pagination_page_size,
+                                          jsonpath=self.next_page_token_jsonpath,
+                                          pagination_total_limit_param=self.pagination_total_limit_param)
+        elif self.pagination_request_style == 'hateoas_paginator':
+            return BaseHATEOASPaginator()
+        elif self.pagination_request_style == 'single_page_paginator':
+            return SinglePagePaginator()
+        elif self.pagination_request_style == 'page_number_paginator':
+            return RestAPIBasePageNumberPaginator(jsonpath=self.next_page_token_jsonpath)
         else:
-            next_page_token = response.headers.get("X-Next-Page", None)
+            self.logger.error(f"Unknown paginator {self.pagination_request_style}. Please declare a valid paginator.")
+            raise ValueError(
+                f"Unknown paginator {self.pagination_request_style}. Please declare a valid paginator."
+            )
 
-        return next_page_token
-
-    def _get_next_page_token_style1(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Any:
-        """Return a token for identifying next page or None if no more pages.
-
-        This method follows method of calculating the next page token from the
-        offsets, limits, and totals provided by the API.
-
-        Args:
-            response: required - the requests.Response given by the api call.
-            previous_token: optional - the token representing the current/previous page
-                of results.
-
-        Returns:
-              A str representing the next page to be queried or `None`.
-
-        """
-        pagination = response.json().get("pagination", {})
-        if pagination and all(x in pagination for x in ["offset", "limit", "total"]):
-            next_page_token = pagination["offset"] + pagination["limit"]
-            if next_page_token <= pagination["total"]:
-                return next_page_token
-        return None
-
-    def _get_url_params_default(
+    def _get_url_params_page_style(
         self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization.
@@ -158,21 +233,87 @@ class DynamicStream(RestApiStream):
             An object containing the parameters to add to the request.
 
         """
+        # Initialise Starting Values
+        last_run_date = get_start_date(self, context)
         params: dict = {}
         if self.params:
             for k, v in self.params.items():
                 params[k] = v
         if next_page_token:
-            params["page"] = next_page_token
+            if self.pagination_next_page_param:
+                next_page_parm = self.pagination_next_page_param
+            else:
+                next_page_parm = "page"
+            params[next_page_parm] = next_page_token
         if self.replication_key:
-            params["sort"] = "asc"
-            params["order_by"] = self.replication_key
+            # Use incremental replication (if available) via a filter query being sent to the API
+            # This assumes storing a replication timestamp and querying records greater than that
+            # date in subsequent runs. Config the appropriate source field and query template.
+            if self.source_search_field and self.source_search_query and last_run_date:
+                query_template = Template(self.source_search_query)
+                if self.use_request_body_not_params:
+                    params[self.source_search_field] = json.loads(query_template.substitute(last_run_date=last_run_date))
+                else:
+                    params[self.source_search_field] = query_template.substitute(last_run_date=last_run_date)
+            else:
+                params["sort"] = "asc"
+                params["order_by"] = self.replication_key
+
         return params
 
-    def _get_url_params_style1(
+    def _get_url_params_offset_style(
         self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization.
+
+        Args:
+            context: optional - the singer context object.
+            next_page_token: optional - the token for the next page of results.
+
+        Returns:
+            An object containing the parameters to add to the request.
+
+        """
+        # Initialise Starting Values
+        last_run_date = get_start_date(self, context)
+        params: dict = {}
+
+        if self.params:
+            for k, v in self.params.items():
+                params[k] = v
+        if next_page_token:
+            if self.pagination_next_page_param:
+                next_page_parm = self.pagination_next_page_param
+            else:
+                next_page_parm = "offset"
+            params[next_page_parm] = next_page_token
+        if self.pagination_page_size is not None:
+            if self.pagination_limit_per_page_param:
+                limit_per_page_param = self.pagination_limit_per_page_param
+            else:
+                limit_per_page_param = "limit"
+            params[limit_per_page_param] = self.pagination_page_size
+        if self.replication_key:
+            # Use incremental replication (if available) via a filter query being sent to the API
+            # This assumes storing a replication timestamp and querying records greater than that
+            # date in subsequent runs. Config the appropriate source field and query template.
+            if self.source_search_field and self.source_search_query and last_run_date:
+                query_template = Template(self.source_search_query)
+                if self.use_request_body_not_params:
+                    params[self.source_search_field] = json.loads(query_template.substitute(last_run_date=last_run_date))
+                else:
+                    params[self.source_search_field] = query_template.substitute(last_run_date=last_run_date)
+            else:
+                params["sort"] = "asc"
+                params["order_by"] = self.replication_key
+
+        return params
+
+    def _get_url_params_header_link(
+        self, context: Optional[Dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization.
+        Logic based on https://github.com/MeltanoLabs/tap-github
 
         Args:
             context: optional - the singer context object.
@@ -186,13 +327,108 @@ class DynamicStream(RestApiStream):
         if self.params:
             for k, v in self.params.items():
                 params[k] = v
+        if self.pagination_page_size:
+            pagination_page_size = self.pagination_page_size
+        else:
+            pagination_page_size = 25 # Default to 25 per page if not set
+        if self.pagination_limit_per_page_param:
+            limit_per_page_param = self.pagination_limit_per_page_param
+        else:
+            limit_per_page_param = "per_page"
+        params[limit_per_page_param] = pagination_page_size
         if next_page_token:
-            params["offset"] = next_page_token
-        if self.pagination_page_size is not None:
-            params["limit"] = self.pagination_page_size
-        if self.replication_key:
-            params["sort"] = "asc"
-            params["order_by"] = self.replication_key
+            request_parameters = parse_qs(str(next_page_token))
+            for k, v in request_parameters.items():
+                params[k] = v            
+
+        if self.replication_key == "updated_at":
+            params["sort"] = "updated"
+            params["direction"] = "desc" if self.use_fake_since_parameter else "asc"
+
+        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
+        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
+        elif self.replication_key in ["starred_at", "created_at"]:
+            params["sort"] = "created"
+            params["direction"] = "desc"
+
+        # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
+        elif self.replication_key == "commit_timestamp":
+            params["direction"] = "desc"
+
+        elif self.replication_key:
+            self.logger.warning(
+                f"The replication key '{self.replication_key}' is not fully supported by this client yet."
+            )
+
+        since = self.get_starting_timestamp(context)
+        since_key = "since" if not self.use_fake_since_parameter else "fake_since"
+        if self.replication_key and since:
+            params[since_key] = since
+            # Leverage conditional requests to save API quotas
+            # https://github.community/t/how-does-if-modified-since-work/139627
+            self._http_headers["If-modified-since"] = email.utils.format_datetime(since)
+
+        return params
+
+
+    def _get_url_params_hateoas_body(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization.
+
+        Args:
+            context: optional - the singer context object.
+            next_page_token: optional - the token for the next page of results.
+
+
+            HATEOAS stands for "Hypermedia as the Engine of Application State".
+             See https://en.wikipedia.org/wiki/HATEOAS.            
+
+            Note: Under the HATEOAS model, the returned token contains all the 
+            required parameters for the subsequent call. The function splits the
+            parameters into Dict key value pairs for subsequent requests.
+
+        Returns:
+            An object containing the parameters to add to the request.
+
+        """
+
+        # Initialise Starting Values
+        last_run_date = get_start_date(self, context)
+        params: dict = {}
+
+        if self.params:
+            for k, v in self.params.items():
+                params[k] = v
+                
+        # Set Pagination Limits if required.
+        if self.pagination_page_size and self.pagination_limit_per_page_param:
+            params[self.pagination_limit_per_page_param] = self.pagination_page_size
+                
+        if next_page_token:
+            # Parse the next_page_token for the path and parameters
+            url_parsed = urlparse(next_page_token)
+            if url_parsed.query:
+                params.update(parse_qsl(url_parsed.query))
+            else:
+                params.update(parse_qsl(url_parsed.path))
+            if url_parsed.path == next_page_token:
+                self.path = ""
+            else:
+                self.path=url_parsed.path
+        elif self.replication_key:
+            # Use incremental replication (if available) via a filter query being sent to the API
+            # This assumes storing a replication timestamp and querying records greater than that
+            # date in subsequent runs. Config the appropriate source field and query template.
+            if self.source_search_field and self.source_search_query and last_run_date:
+                query_template = Template(self.source_search_query)
+                if self.use_request_body_not_params:
+                    params[self.source_search_field] = json.loads(query_template.substitute(last_run_date=last_run_date))
+                else:
+                    params[self.source_search_field] = query_template.substitute(last_run_date=last_run_date)
+            elif self.source_search_field and last_run_date:
+                params[self.source_search_field] = "gt" + last_run_date
+
         return params
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:

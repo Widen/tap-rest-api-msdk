@@ -64,3 +64,43 @@ def flatten_json(obj: dict, except_keys: Optional[list] = None) -> dict:
 
     flatten(obj, exception_keys=except_keys)
     return out
+    
+def unnest_dict(d):
+    """Flattens a dict object by create a new object with the key value pairs.
+
+    Recursive flattening any nested dicts to a single level.
+
+    Args:
+        obj: the dict object to be flattened.
+
+    Returns:
+        A flattened dict object.
+
+    """
+    result = {}
+    for k,v in d.items():
+        if isinstance(v, dict):
+            result.update(unnest_dict(v))
+        else:
+            result[k] = v
+    return result
+
+def get_start_date(
+    self,
+    context: dict
+) -> Any:
+    """Returns a start date if a DateTime bookmark is available.
+    Otherwise it returns the starting date as defined in 
+    the start_date parameter.
+
+    Args:
+        context: - the singer context object.
+
+    Returns:
+        An start date else and empty string.
+
+    """
+    try:
+        return self.get_starting_timestamp(context).strftime("%Y-%m-%dT%H:%M:%S")
+    except (ValueError, AttributeError):
+        return self.get_starting_replication_key_value(context)

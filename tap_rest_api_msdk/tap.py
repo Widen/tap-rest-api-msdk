@@ -9,14 +9,17 @@ from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
+from tap_rest_api_msdk.auth import select_authenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
-
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
 
     name = "tap-rest-api-msdk"
+
+    # Required for Authentication in tap.py - function APIAuthenticatorBase
+    tap_name = name
 
     common_properties = th.PropertiesList(
         th.Property(
@@ -42,7 +45,7 @@ class TapRestApiMsdk(Tap):
             required=False,
             description="An object of headers to pass into the api calls. Stream level"
             "headers will be merged with top-level params with stream"
-            "level params overwriting top-level params with the same key",
+            "level params overwriting top-level params with the same key.",
         ),
         th.Property(
             "records_path",
@@ -63,8 +66,8 @@ class TapRestApiMsdk(Tap):
             "replication_key",
             th.StringType,
             required=False,
-            description="the json key of the replication key. Note that this should "
-            "be an incrementing integer or datetime object.",
+            description="the json response field representing the replication key."
+            "Note that this should be an incrementing integer or datetime object.",
         ),
         th.Property(
             "except_keys",
@@ -88,6 +91,37 @@ class TapRestApiMsdk(Tap):
             description="number of records used to infer the stream's schema. "
             "Defaults to 50.",
         ),
+        th.Property(
+            "start_date",
+            th.DateTimeType,
+            required=False,
+            description="An optional field. Normally required when using the"
+            "replication_key. This is the initial starting date when using a"
+            "date based replication key and there is no state available.",
+        ),
+        th.Property(
+            "source_search_field",
+            th.StringType,
+            required=False,
+            description="An optional field name which can be used for querying specific "
+            "records from supported API's. The intend for this parameter is to continue "
+            "incrementally processing from a previous state. Example `last-updated`. "
+            "Note: You must also set the replication_key, where the replication_key is"
+            "json response representation of the API `source_search_field`. You should"
+            "also supply the `source_search_query`, `replication_key` and `start_date`.",
+        ),
+        th.Property(
+            "source_search_query",
+            th.StringType,
+            required=False,
+            description="An optional query template to be issued against the API."
+            "Substitute the query field you are querying against with $last_run_date. At"
+            "run-time, the tap will dynamically update the token with either the `start_date`"
+            "or the last bookmark / state value. A simple template Example for FHIR API's: "
+            "gt$last_run_date. A more complex example against an Opensearch API, "
+            "{\"bool\": {\"filter\": [{\"range\": { \"meta.lastUpdated\": { \"gt\": \"$last_run_date\" }}}] }} ."
+            "Note: Any required double quotes in the query template must be escaped.",
+        ),
     )
 
     top_level_properties = th.PropertiesList(
@@ -97,12 +131,136 @@ class TapRestApiMsdk(Tap):
             required=True,
             description="the base url/endpoint for the desired api",
         ),
-        # th.Property("auth_method", th.StringType, default='no_auth', required=False),
-        # th.Property("auth_token", th.StringType, required=False),
+        th.Property(
+            "auth_method",
+            th.StringType,
+            default='no_auth',
+            required=False,
+            description="The method of authentication used by the API. Supported options include "
+            "oauth: for OAuth2 authentication, basic: Basic Header authorization - base64-encoded "
+            "username + password config items, api_key: for API Keys in the header e.g. X-API-KEY,"
+            "bearer_token: for Bearer token authorization, aws: for AWS Authentication."
+            "Defaults to no_auth which will take authentication parameters passed via the headers"
+            "config."
+        ),
+        th.Property(
+            "api_keys",
+            th.ObjectType(),
+            required=False,
+            description="A object of API Key/Value pairs used by the api_key auth method "
+            "Example: { ""X-API-KEY"": ""my secret value""}."
+        ),
+        th.Property(
+            "client_id",
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. The public application ID that's "
+            "assigned for Authentication. The client_id should accompany a client_secret."
+        ),
+        th.Property(
+            "client_secret",
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. The client_secret is a secret "
+            "known only to the application and the authorization server. It is essential the "
+            "application's own password."
+        ),     
+        th.Property(
+            "username",
+            th.StringType,
+            required=False,
+            description="Used for a number of authentication methods that use a user "
+            "password combination for authentication."
+        ),
+        th.Property(
+            "password",
+            th.StringType,
+            required=False,
+            description="Used for a number of authentication methods that use a user "
+            "password combination for authentication."
+        ),
+        th.Property(
+            "bearer_token",
+            th.StringType,
+            required=False,
+            description="Used for the Bearer Authentication method, which uses a token "
+            "as part of the authorization header for authentication."
+        ),
+        th.Property(
+            "refresh_token",
+            th.StringType,
+            required=False,
+            description="An OAuth2 Refresh Token is a string that the OAuth2 client can use to "
+            "get a new access token without the user's interaction."
+        ),
+        th.Property(
+            "grant_type",
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. The grant_type is required "
+            "to describe the OAuth2 flow. Flows support by this tap include client_credentials, "
+            "refresh_token, password."
+        ),
+        th.Property(
+            "scope",
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. The scope is optional, "
+            "it is a mechanism to limit the amount of access that is granted to an access token. "
+            "One or more scopes can be provided delimited by a space."
+        ),
+        th.Property(
+            "access_token_url",
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. This is the end-point for "
+            "the authentication server used to exchange the authorization codes for a access "
+            "token."
+        ),
+        th.Property(
+            "redirect_uri",
+            th.StringType,
+            required=False,
+            description="Used for the OAuth2 authentication method. This is optional as the "
+            "redirect_uri may be part of the token returned by the authentication server. If a "
+            "redirect_uri is provided, it determines where the API server redirects the user "
+            "after the user completes the authorization flow."
+        ),
+        th.Property(
+            "oauth_extras",
+            th.ObjectType(),
+            required=False,
+            description="A object of Key/Value pairs for additional oauth config parameters "
+            "which may be required by the authorization server."
+            "Example: { ""resource"": ""https://analysis.windows.net/powerbi/api""}."
+        ),
+        th.Property(
+            "oauth_expiration_secs",
+            th.IntegerType,
+            default=None,
+            required=False,
+            description="Used for OAuth2 authentication method. This optional setting is a "
+            "timer for the expiration of a token in seconds. If not set the OAuth will use "
+            "the default expiration set in the token by the authorization server."
+        ),
+        th.Property(
+            "aws_credentials",
+            th.ObjectType(),
+            default=None,
+            required=False,
+            description="An object of aws credentials to authenticate to access AWS services."
+            "This example is to access the AWS OpenSearch service."
+            "Example: { ""aws_access_key_id"": ""my_aws_key_id"", "
+            "           ""aws_secret_access_key"": ""my_aws_secret_access_key"", "
+            "           ""aws_region"": ""us-east-1"", "
+            "           ""aws_service"": ""es"", "
+            "           ""use_signed_credentials"": true} "
+            
+        ),
         th.Property(
             "next_page_token_path",
             th.StringType,
-            default="$.next_page",
+            default=None,
             required=False,
             description="a jsonpath string representing the path to the 'next page' "
             "token. Defaults to `$.next_page`",
@@ -124,11 +282,48 @@ class TapRestApiMsdk(Tap):
             "Defaults to `default`",
         ),
         th.Property(
+            "use_request_body_not_params",
+            th.BooleanType,
+            default=False,
+            required=False,
+            description="sends the request parameters in the request body."
+            "This is normally not required, a few API's like OpenSearch"
+            "require this. Defaults to `False`",
+        ),
+        th.Property(
             "pagination_page_size",
             th.IntegerType,
             default=None,
             required=False,
             description="the size of each page in records. Defaults to None",
+        ),
+        th.Property(
+            "pagination_results_limit",
+            th.IntegerType,
+            default=None,
+            required=False,
+            description="limits the max number of records. Defaults to None",
+        ),
+        th.Property(
+            "pagination_next_page_param",
+            th.StringType,
+            default=None,
+            required=False,
+            description="The name of the param that indicates the page/offset. Defaults to None",
+        ),
+        th.Property(
+            "pagination_limit_per_page_param",
+            th.StringType,
+            default=None,
+            required=False,
+            description="The name of the param that indicates the limit/per_page. Defaults to None",
+        ),
+        th.Property(
+            "pagination_total_limit_param",
+            th.StringType,
+            default="total",
+            required=False,
+            description="The name of the param that indicates the total limit e.g. total, count. Defaults to total",
         ),
     )
 
@@ -190,6 +385,16 @@ class TapRestApiMsdk(Tap):
             path = stream.get("path", self.config.get("path", ""))
             params = {**self.config.get("params", {}), **stream.get("params", {})}
             headers = {**self.config.get("headers", {}), **stream.get("headers", {})}
+            start_date = stream.get("start_date", self.config.get("start_date", ""))
+            replication_key=stream.get(
+                        "replication_key", self.config.get("replication_key", "")
+                    )
+            source_search_field=stream.get(
+                        "source_search_field", self.config.get("source_search_field", "")
+                    )
+            source_search_query=stream.get(
+                        "source_search_query", self.config.get("source_search_query", "")
+                    )
 
             schema = {}
             schema_config = stream.get("schema")
@@ -229,15 +434,21 @@ class TapRestApiMsdk(Tap):
                     primary_keys=stream.get(
                         "primary_keys", self.config.get("primary_keys", [])
                     ),
-                    replication_key=stream.get(
-                        "replication_key", self.config.get("replication_key", "")
-                    ),
+                    replication_key=replication_key,
                     except_keys=except_keys,
-                    next_page_token_path=self.config["next_page_token_path"],
+                    next_page_token_path=self.config.get("next_page_token_path"),
                     pagination_request_style=self.config["pagination_request_style"],
                     pagination_response_style=self.config["pagination_response_style"],
                     pagination_page_size=self.config.get("pagination_page_size"),
+                    pagination_results_limit=self.config.get("pagination_results_limit"),
+                    pagination_next_page_param=self.config.get("pagination_next_page_param"),
+                    pagination_limit_per_page_param=self.config.get("pagination_limit_per_page_param"),
+                    pagination_total_limit_param=self.config.get("pagination_total_limit_param"),
                     schema=schema,
+                    start_date=start_date,
+                    source_search_field=source_search_field,
+                    source_search_query=source_search_query,
+                    use_request_body_not_params=self.config.get("use_request_body_not_params"),
                 )
             )
 
@@ -253,6 +464,10 @@ class TapRestApiMsdk(Tap):
         headers: dict,
     ) -> Any:
         """Infer schema from the first records returned by api. Creates a Stream object.
+        
+        If auth_method is set, will call select_authenticator to obtain credentials
+        to issue a request to sample some records. The select_authenticator will
+        set the self.http_auth if required by the request authenticator.
 
         Args:
             records_path: required - see config_jsonschema.
@@ -269,17 +484,33 @@ class TapRestApiMsdk(Tap):
             A schema for the stream.
 
         """
-        # todo: this request format is not very robust
-        r = requests.get(self.config["api_url"] + path, params=params, headers=headers)
+        # TODO: this request format is not very robust
+
+        # Initialise Variables
+        auth_method = self.config.get("auth_method", "")
+        self.http_auth = None
+
+        if auth_method and not auth_method == "no_auth":
+            # Initializing Authenticator for authorisation to obtain a schema.
+            # Will set the self.http_auth if required by a given authenticator
+            authenticator = select_authenticator(self)
+            if hasattr(authenticator, "auth_headers"):
+                headers.update(authenticator.auth_headers or {})
+            if hasattr(authenticator, "auth_params"):
+                params.update(authenticator.auth_params or {})
+
+        r = requests.get(self.config["api_url"] + path, auth=self.http_auth, params=params, headers=headers)
         if r.ok:
             records = extract_jsonpath(records_path, input=r.json())
         else:
+            self.logger.error(f"Error Connecting, message = {r.text}")
             raise ValueError(r.text)
 
         builder = SchemaBuilder()
         builder.add_schema(th.PropertiesList().to_dict())
         for i, record in enumerate(records):
             if type(record) is not dict:
+                self.logger.error("Input must be a dict object.")
                 raise ValueError("Input must be a dict object.")
 
             flat_record = flatten_json(record, except_keys)
