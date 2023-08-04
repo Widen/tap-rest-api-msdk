@@ -27,7 +27,7 @@ requests-aws4auth = "^1.2.3"
 boto3 = "^1.26.156"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2.5"
+pytest = "^7.2.0"
 tox = "^3.24.4"
 flake8 = "^3.9.2"
 black = "^23.3.0"
