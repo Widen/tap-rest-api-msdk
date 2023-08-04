@@ -146,6 +146,7 @@ class DynamicStream(RestApiStream):
         self.start_date = start_date
         self.source_search_field = source_search_field
         self.source_search_query = source_search_query
+        self.pagination_page_size: Optional[int]
 
         # Setting Pagination Limits
         if self.pagination_request_style == "restapi_header_link_paginator":
@@ -182,7 +183,7 @@ class DynamicStream(RestApiStream):
                 self.ABORT_AT_RECORD_COUNT = (
                     self.pagination_results_limit
                 )  # Will raise an exception.
-            self.pagination_page_size = pagination_page_size or 0
+            self.pagination_page_size = pagination_page_size
 
         # GitHub is missing the "since" parameter on a few endpoints
         # set this parameter to True if your stream needs to navigate data in
