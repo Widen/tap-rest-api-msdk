@@ -212,6 +212,18 @@ class DynamicStream(RestApiStream):
 
         return headers
 
+    def backoff_wait_generator() -> Callable[..., Generator[int, Any, None]]:
+        def _backoff_from_headers(retriable_api_error):
+            response_headers = retriable_api_error.response.headers
+            return int(response_headers.get("Retry-After", 0))
+
+        def _get_wait_time_from_response(retriable_api_error):
+            res = [int(i) for i in retriable_api_error.message.split() if i.isdigit()]
+            res.append(0)
+            return int(max(res))
+
+        return self.backoff_runtime(value=max(_backoff_from_headers,_get_wait_time_from_response))
+
     def get_new_paginator(self):
         """Return the requested paginator required to retrieve all data from the API.
 
