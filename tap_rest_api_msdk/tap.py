@@ -22,6 +22,10 @@ class TapRestApiMsdk(Tap):
     # Required for Authentication in tap.py - function APIAuthenticatorBase
     tap_name = name
 
+    # Used to cache the Authenticator to prevent over hitting the Authentication
+    # end-point for each stream.
+    _authenticator = None
+
     common_properties = th.PropertiesList(
         th.Property(
             "path",
@@ -475,6 +479,7 @@ class TapRestApiMsdk(Tap):
                     use_request_body_not_params=self.config.get(
                         "use_request_body_not_params"
                     ),
+                    authenticator=self._authenticator,
                 )
             )
 
@@ -519,11 +524,20 @@ class TapRestApiMsdk(Tap):
         if auth_method and not auth_method == "no_auth":
             # Initializing Authenticator for authorisation to obtain a schema.
             # Will set the self.http_auth if required by a given authenticator
-            authenticator = select_authenticator(self)
-            if hasattr(authenticator, "auth_headers"):
-                headers.update(authenticator.auth_headers or {})
-            if hasattr(authenticator, "auth_params"):
-                params.update(authenticator.auth_params or {})
+            if not self._authenticator:
+                self._authenticator = select_authenticator(self)
+                if not self._authenticator:
+                    # No Auth Method, use default Authenticator
+                    self._authenticator = APIAuthenticatorBase(stream=self)
+            elif auth_method == 'oauth':
+                if not self._authenticator.is_token_valid():
+                    # Obtain a new OAuth token as it has expired
+                    self._authenticator = select_authenticator(self)
+
+            if hasattr(self._authenticator, "auth_headers"):
+                headers.update(self._authenticator.auth_headers or {})
+            if hasattr(self._authenticator, "auth_params"):
+                params.update(self._authenticator.auth_params or {})
 
         r = requests.get(
             self.config["api_url"] + path,

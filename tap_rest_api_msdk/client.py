@@ -16,7 +16,13 @@ class RestApiStream(RESTStream):
     # Intialise self.http_auth used by prepare_request
     http_auth = None
     # Cache the authenticator using a Smart Singleton pattern
-    _authenticator = None
+    try:
+        self.assigned_authenticator
+    except NameError:
+        _authenticator = None
+    else:
+        if self.assigned_authenticator:
+            _authenticator = self.assigned_authenticator
 
     @property
     def url_base(self) -> Any:

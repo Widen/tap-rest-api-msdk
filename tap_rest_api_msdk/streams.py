@@ -4,7 +4,7 @@ import email.utils
 import json
 from datetime import datetime
 from string import Template
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Callable, Dict, Generator, Iterable, Optional
 from urllib.parse import parse_qs, parse_qsl, urlparse
 
 import requests
@@ -64,6 +64,7 @@ class DynamicStream(RestApiStream):
         source_search_field: Optional[str] = None,
         source_search_query: Optional[str] = None,
         use_request_body_not_params: Optional[bool] = False,
+        authenticator: Optional[object] = None,
     ) -> None:
         """Class initialization.
 
@@ -90,6 +91,7 @@ class DynamicStream(RestApiStream):
             source_search_field: see tap.py
             source_search_query: see tap.py
             use_request_body_not_params: see tap.py
+            authenticator: see tap.py
 
         """
         super().__init__(tap=tap, name=tap.name, schema=schema)
@@ -101,6 +103,8 @@ class DynamicStream(RestApiStream):
         self.path = path
         self.params = params if params else {}
         self.headers = headers
+        self.assigned_authenticator = authenticator
+        self._authenticator = authenticator
         self.primary_keys = primary_keys
         self.replication_key = replication_key
         self.except_keys = except_keys
@@ -212,17 +216,17 @@ class DynamicStream(RestApiStream):
 
         return headers
 
-    def backoff_wait_generator() -> Callable[..., Generator[int, Any, None]]:
-        def _backoff_from_headers(retriable_api_error):
-            response_headers = retriable_api_error.response.headers
+    def backoff_wait_generator(self) -> Callable[..., Generator[int, Any, None]]:
+        def _backoff_from_headers(exception):
+            response_headers = exception.response.headers
             return int(response_headers.get("Retry-After", 0))
 
-        def _get_wait_time_from_response(retriable_api_error):
-            res = [int(i) for i in retriable_api_error.message.split() if i.isdigit()]
+        def _get_wait_time_from_response(exception):
+            res = [int(i) for i in exception.message.split() if i.isdigit()]
             res.append(0)
             return int(max(res))
 
-        return self.backoff_runtime(value=max(_backoff_from_headers,_get_wait_time_from_response))
+        return self.backoff_runtime(value=_get_wait_time_from_response)
 
     def get_new_paginator(self):
         """Return the requested paginator required to retrieve all data from the API.
