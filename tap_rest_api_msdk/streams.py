@@ -64,6 +64,8 @@ class DynamicStream(RestApiStream):
         source_search_field: Optional[str] = None,
         source_search_query: Optional[str] = None,
         use_request_body_not_params: Optional[bool] = False,
+        backoff_type: Optional[str] = None,
+        backoff_param: Optional[str] = "Retry-After",
         authenticator: Optional[object] = None,
     ) -> None:
         """Class initialization.
@@ -91,6 +93,8 @@ class DynamicStream(RestApiStream):
             source_search_field: see tap.py
             source_search_query: see tap.py
             use_request_body_not_params: see tap.py
+            backoff_type: see tap.py
+            backoff_param: see tap.py
             authenticator: see tap.py
 
         """
@@ -217,16 +221,34 @@ class DynamicStream(RestApiStream):
         return headers
 
     def backoff_wait_generator(self) -> Callable[..., Generator[int, Any, None]]:
+        """Return a backoff generator as required to manage Rate Limited APIs.
+        Supply a backoff_type in the config to indicate the style of backoff.
+        If the backoff response is in a header, supply a backoff_param
+        indicating what key contains the backoff delay.
+        
+        Note: The backoff_type is message, the message is parsed for numeric
+        values. It is assumed that the highest numeric value discovered is the
+        backoff value in seconds.
+
+        Returns:
+              Backoff Generator indicating the value to wait based on API Response.
+
+        """
         def _backoff_from_headers(exception):
             response_headers = exception.response.headers
-            return int(response_headers.get("Retry-After", 0))
+            return int(response_headers.get(self.backoff_param, 0))
 
         def _get_wait_time_from_response(exception):
             res = [int(i) for i in exception.message.split() if i.isdigit()]
             res.append(0)
             return int(max(res))
 
-        return self.backoff_runtime(value=_get_wait_time_from_response)
+        if self.backoff_type == "message":
+            return self.backoff_runtime(value=_get_wait_time_from_response)
+        elif self.backoff_type == "header":
+            return self.backoff_runtime(value=_backoff_from_headers)
+        else:
+            return backoff.expo(factor=2)
 
     def get_new_paginator(self):
         """Return the requested paginator required to retrieve all data from the API.

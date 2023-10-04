@@ -308,6 +308,27 @@ class TapRestApiMsdk(Tap):
             "require this. Defaults to `False`",
         ),
         th.Property(
+            "backoff_type",
+            th.StringType,
+            default=None,
+            required=False,
+            allowed_values=[None, "message", "header"],
+            description="The style of Backoff applied to rate limited APIs."
+            "None: Default Meltano SDK backoff_wait_generator, message: Scans "
+            "the response message for a time interval, header: retrieves the "
+            "backoff value from a header key response."
+            " Defaults to `None`",
+        ),
+        th.Property(
+            "backoff_param",
+            th.StringType,
+            default="Retry-After",
+            required=False,
+            description="The name of the key which contains a the "
+            "backoff value in the response. This is very applicable to backoff"
+            " values in headers. Defaults to `Retry-After`",
+        ),
+        th.Property(
             "pagination_page_size",
             th.IntegerType,
             default=None,
@@ -479,6 +500,8 @@ class TapRestApiMsdk(Tap):
                     use_request_body_not_params=self.config.get(
                         "use_request_body_not_params"
                     ),
+                    backoff_type=self.config.get("backoff_type"),
+                    backoff_param=self.config.get("backoff_param"),
                     authenticator=self._authenticator,
                 )
             )

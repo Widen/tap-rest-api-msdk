@@ -46,6 +46,10 @@ plugins:
           kind: string
         - name: use_request_body_not_params
           kind: boolean
+        - name: backoff_type
+          kind: string
+        - name: backoff_param
+          kind: string
         - name: pagination_page_size
           kind: integer
         - name: pagination_results_limit
@@ -137,7 +141,9 @@ provided at the top-level will be the default values for each stream.:
 - `api_url`: required: the base url/endpoint for the desired api.
 - `pagination_request_style`: optional: style for requesting pagination, defaults to `default` which is the `jsonpath_paginator`, see Pagination below.
 - `pagination_response_style`: optional: style of pagination results, defaults to `default` which is the `page` style response, see Pagination below.
-- `use_request_body_not_params`: optional: sends the request parameters in the request body. This is normally not required, a few API's like OpenSearch require this. Defaults to `False`"
+- `use_request_body_not_params`: optional: sends the request parameters in the request body. This is normally not required, a few API's like OpenSearch require this. Defaults to `False`.
+- `backoff_type`: optional: The style of Backoff [message|header] applied to rate limited APIs. Backoff times (seconds) come from response `message` or `header`. Defaults to `None`.
+- `backoff_param`: optional: the header parameter to inspect for a backoff time. Defaults to `Retry-After`.
 - `pagination_page_size`: optional: limit for size of page, defaults to None.
 - `pagination_results_limit`: optional: limits the max number of records. Note: Will cause an exception if the limit is hit (except for the `restapi_header_link_paginator`). This should be used for development purposes to restrict the total number of records returned by the API. Defaults to None.
 - `pagination_next_page_param`: optional: The name of the param that indicates the page/offset. Defaults to None.
