@@ -137,6 +137,8 @@ class DynamicStream(RestApiStream):
         # processing is invoked.
 
         self.use_request_body_not_params = use_request_body_not_params
+        self.backoff_type = backoff_type
+        self.backoff_param = backoff_param
         if self.use_request_body_not_params:
             self.prepare_request_payload = get_url_params_styles.get(  # type: ignore
                 pagination_response_style, self._get_url_params_page_style
