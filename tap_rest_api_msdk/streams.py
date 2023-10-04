@@ -250,7 +250,8 @@ class DynamicStream(RestApiStream):
         elif self.backoff_type == "header":
             return self.backoff_runtime(value=_backoff_from_headers)
         else:
-            return backoff.expo(factor=2)
+            # No override required. Use SDK backoff_wait_generator
+            return super().backoff_wait_generator()
 
     def get_new_paginator(self):
         """Return the requested paginator required to retrieve all data from the API.
