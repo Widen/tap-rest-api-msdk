@@ -66,6 +66,7 @@ class DynamicStream(RestApiStream):
         use_request_body_not_params: Optional[bool] = False,
         backoff_type: Optional[str] = None,
         backoff_param: Optional[str] = "Retry-After",
+        backoff_time_extension: Optional[int] = 0,
         authenticator: Optional[object] = None,
     ) -> None:
         """Class initialization.
@@ -139,6 +140,7 @@ class DynamicStream(RestApiStream):
         self.use_request_body_not_params = use_request_body_not_params
         self.backoff_type = backoff_type
         self.backoff_param = backoff_param
+        self.backoff_time_extension = backoff_time_extension
         if self.use_request_body_not_params:
             self.prepare_request_payload = get_url_params_styles.get(  # type: ignore
                 pagination_response_style, self._get_url_params_page_style
@@ -228,22 +230,25 @@ class DynamicStream(RestApiStream):
         If the backoff response is in a header, supply a backoff_param
         indicating what key contains the backoff delay.
         
-        Note: The backoff_type is message, the message is parsed for numeric
+        Note: If the backoff_type is message, the message is parsed for numeric
         values. It is assumed that the highest numeric value discovered is the
         backoff value in seconds.
 
         Returns:
-              Backoff Generator indicating the value to wait based on API Response.
+            Backoff Generator with value to wait based on the API Response.
 
         """
         def _backoff_from_headers(exception):
             response_headers = exception.response.headers
-            return int(response_headers.get(self.backoff_param, 0))
+
+            return int(response_headers.get(self.backoff_param, 0)
+            ) + self.backoff_time_extension
 
         def _get_wait_time_from_response(exception):
-            res = [int(i) for i in exception.message.split() if i.isdigit()]
-            res.append(0)
-            return int(max(res))
+            response_message = exception.response.json().get('message',0)
+            res = [int(i) for i in response_message.split() if i.isdigit()]
+
+            return int(max(res)) + self.backoff_time_extension
 
         if self.backoff_type == "message":
             return self.backoff_runtime(value=_get_wait_time_from_response)
@@ -257,7 +262,7 @@ class DynamicStream(RestApiStream):
         """Return the requested paginator required to retrieve all data from the API.
 
         Returns:
-              Paginator Class.
+            Paginator Class.
 
         """
         self.logger.info(

@@ -329,6 +329,15 @@ class TapRestApiMsdk(Tap):
             " values in headers. Defaults to `Retry-After`",
         ),
         th.Property(
+            "backoff_time_extension",
+            th.IntegerType,
+            default=0,
+            required=False,
+            description="A time extension (in seconds) to add to the backoff "
+            "value from the API plus jitter. Some APIs are not precise"
+            ", this adds an additional wait delay. Defaults to `0`",
+        ),
+        th.Property(
             "pagination_page_size",
             th.IntegerType,
             default=None,
@@ -502,6 +511,9 @@ class TapRestApiMsdk(Tap):
                     ),
                     backoff_type=self.config.get("backoff_type"),
                     backoff_param=self.config.get("backoff_param"),
+                    backoff_time_extension=self.config.get(
+                        "backoff_time_extension"
+                    ),
                     authenticator=self._authenticator,
                 )
             )

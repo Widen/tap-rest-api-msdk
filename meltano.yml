@@ -24,6 +24,8 @@ plugins:
           kind: string
         - name: backoff_param
           kind: string
+        - name: backoff_time_extension
+          kind: integer
         - name: pagination_page_size
           kind: integer
         - name: pagination_results_limit
