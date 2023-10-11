@@ -338,6 +338,16 @@ class TapRestApiMsdk(Tap):
             ", this adds an additional wait delay. Defaults to `0`",
         ),
         th.Property(
+            "store_raw_json_message",
+            th.BooleanType,
+            default=False,
+            required=False,
+            description="Adds an additional _SDC_RAW_JSON column as an "
+            "object. This will store the raw incoming message in this "
+            "column when provisioned. Useful for semi-structured records "
+            "when the schema is not well defined. Defaults to `False`",
+        ),
+        th.Property(
             "pagination_page_size",
             th.IntegerType,
             default=None,
@@ -514,6 +524,9 @@ class TapRestApiMsdk(Tap):
                     backoff_time_extension=self.config.get(
                         "backoff_time_extension"
                     ),
+                    store_raw_json_message=self.config.get(
+                        "store_raw_json_message"
+                    ),
                     authenticator=self._authenticator,
                 )
             )
@@ -593,8 +606,16 @@ class TapRestApiMsdk(Tap):
                 self.logger.error("Input must be a dict object.")
                 raise ValueError("Input must be a dict object.")
 
-            flat_record = flatten_json(record, except_keys)
+            flat_record = flatten_json(
+                record,
+                except_keys,
+                store_raw_json_message=False
+            )
+
             builder.add_object(flat_record)
+            # Optional add _sdc_raw_json field to store the raw message
+            if self.config.get("store_raw_json_message"):
+                builder.add_object({"_sdc_raw_json": {}})
 
             if i >= inference_records:
                 break

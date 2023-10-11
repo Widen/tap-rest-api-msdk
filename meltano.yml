@@ -26,6 +26,8 @@ plugins:
           kind: string
         - name: backoff_time_extension
           kind: integer
+        - name: store_raw_json_message
+          kind: boolean
         - name: pagination_page_size
           kind: integer
         - name: pagination_results_limit

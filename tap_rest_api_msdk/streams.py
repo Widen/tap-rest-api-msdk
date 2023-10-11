@@ -67,6 +67,7 @@ class DynamicStream(RestApiStream):
         backoff_type: Optional[str] = None,
         backoff_param: Optional[str] = "Retry-After",
         backoff_time_extension: Optional[int] = 0,
+        store_raw_json_message: Optional[bool] = False,
         authenticator: Optional[object] = None,
     ) -> None:
         """Class initialization.
@@ -141,6 +142,7 @@ class DynamicStream(RestApiStream):
         self.backoff_type = backoff_type
         self.backoff_param = backoff_param
         self.backoff_time_extension = backoff_time_extension
+        self.store_raw_json_message = store_raw_json_message
         if self.use_request_body_not_params:
             self.prepare_request_payload = get_url_params_styles.get(  # type: ignore
                 pagination_response_style, self._get_url_params_page_style
@@ -567,4 +569,4 @@ class DynamicStream(RestApiStream):
               A record that has been processed.
 
         """
-        return flatten_json(row, self.except_keys)
+        return flatten_json(row, self.except_keys, self.store_raw_json_message)
