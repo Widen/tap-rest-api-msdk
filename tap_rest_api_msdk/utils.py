@@ -5,10 +5,10 @@ from typing import Any, Optional
 
 
 def flatten_json(
-        obj: dict,
-        except_keys: Optional[list] = None,
-        store_raw_json_message: Optional[bool] = False
-    ) -> dict:
+    obj: dict,
+    except_keys: Optional[list] = None,
+    store_raw_json_message: Optional[bool] = False,
+) -> dict:
     """Flattens a json object by appending the patch as a key in the returned object.
 
     Automatically converts arrays and any provided keys into json strings to prevent
@@ -71,7 +71,7 @@ def flatten_json(
     flatten(obj, exception_keys=except_keys)
     # Optional store the whole row in the _sdc_raw_json field.
     if store_raw_json_message:
-        out['_sdc_raw_json'] = obj
+        out["_sdc_raw_json"] = obj
     return out
 
 

@@ -521,12 +521,8 @@ class TapRestApiMsdk(Tap):
                     ),
                     backoff_type=self.config.get("backoff_type"),
                     backoff_param=self.config.get("backoff_param"),
-                    backoff_time_extension=self.config.get(
-                        "backoff_time_extension"
-                    ),
-                    store_raw_json_message=self.config.get(
-                        "store_raw_json_message"
-                    ),
+                    backoff_time_extension=self.config.get("backoff_time_extension"),
+                    store_raw_json_message=self.config.get("store_raw_json_message"),
                     authenticator=self._authenticator,
                 )
             )
@@ -577,7 +573,7 @@ class TapRestApiMsdk(Tap):
                 if not self._authenticator:
                     # No Auth Method, use default Authenticator
                     self._authenticator = APIAuthenticatorBase(stream=self)
-            elif auth_method == 'oauth':
+            elif auth_method == "oauth":
                 if not self._authenticator.is_token_valid():
                     # Obtain a new OAuth token as it has expired
                     self._authenticator = select_authenticator(self)
@@ -607,9 +603,7 @@ class TapRestApiMsdk(Tap):
                 raise ValueError("Input must be a dict object.")
 
             flat_record = flatten_json(
-                record,
-                except_keys,
-                store_raw_json_message=False
+                record, except_keys, store_raw_json_message=False
             )
 
             builder.add_object(flat_record)

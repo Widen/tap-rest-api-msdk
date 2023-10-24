@@ -231,7 +231,7 @@ class DynamicStream(RestApiStream):
         Supply a backoff_type in the config to indicate the style of backoff.
         If the backoff response is in a header, supply a backoff_param
         indicating what key contains the backoff delay.
-        
+
         Note: If the backoff_type is message, the message is parsed for numeric
         values. It is assumed that the highest numeric value discovered is the
         backoff value in seconds.
@@ -240,14 +240,17 @@ class DynamicStream(RestApiStream):
             Backoff Generator with value to wait based on the API Response.
 
         """
+
         def _backoff_from_headers(exception):
             response_headers = exception.response.headers
 
-            return int(response_headers.get(self.backoff_param, 0)
-            ) + self.backoff_time_extension
+            return (
+                int(response_headers.get(self.backoff_param, 0))
+                + self.backoff_time_extension
+            )
 
         def _get_wait_time_from_response(exception):
-            response_message = exception.response.json().get('message',0)
+            response_message = exception.response.json().get("message", 0)
             res = [int(i) for i in response_message.split() if i.isdigit()]
 
             return int(max(res)) + self.backoff_time_extension
