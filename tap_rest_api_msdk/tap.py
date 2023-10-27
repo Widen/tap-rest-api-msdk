@@ -9,7 +9,7 @@ from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
-from tap_rest_api_msdk.auth import select_authenticator
+from tap_rest_api_msdk.auth import get_authenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
 
@@ -540,9 +540,11 @@ class TapRestApiMsdk(Tap):
     ) -> Any:
         """Infer schema from the first records returned by api. Creates a Stream object.
 
-        If auth_method is set, will call select_authenticator to obtain credentials
-        to issue a request to sample some records. The select_authenticator will
-        set the self.http_auth if required by the request authenticator.
+        If auth_method is set, will call get_authenticator to obtain credentials
+        to issue a request to sample some records. The get_authenticator will:
+        - stores the authenticator in self._authenticator
+        - sets the self.http_auth if required by a given authenticator
+        - use an existing authenticator if one exists and is cached.
 
         Args:
             records_path: required - see config_jsonschema.
@@ -566,17 +568,8 @@ class TapRestApiMsdk(Tap):
         self.http_auth = None
 
         if auth_method and not auth_method == "no_auth":
-            # Initializing Authenticator for authorisation to obtain a schema.
-            # Will set the self.http_auth if required by a given authenticator
-            if not self._authenticator:
-                self._authenticator = select_authenticator(self)
-                if not self._authenticator:
-                    # No Auth Method, use default Authenticator
-                    self._authenticator = APIAuthenticatorBase(stream=self)
-            elif auth_method == "oauth":
-                if not self._authenticator.is_token_valid():
-                    # Obtain a new OAuth token as it has expired
-                    self._authenticator = select_authenticator(self)
+            # Obtaining Authenticator for authorisation to obtain a schema.
+            get_authenticator(self)
 
             if hasattr(self._authenticator, "auth_headers"):
                 headers.update(self._authenticator.auth_headers or {})

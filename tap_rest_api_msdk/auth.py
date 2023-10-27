@@ -6,6 +6,7 @@ from typing import Any
 import boto3
 from requests_aws4auth import AWS4Auth
 from singer_sdk.authenticators import (
+    APIAuthenticatorBase,
     APIKeyAuthenticator,
     BasicAuthenticator,
     BearerTokenAuthenticator,
@@ -271,3 +272,37 @@ def select_authenticator(self) -> Any:
             f"Unknown authentication method {auth_method}. Use api_key, basic, oauth, "
             f"bearer_token, or aws."
         )
+
+
+def get_authenticator(self) -> Any:
+    """Retrieve the appropriate authenticator in tap and stream
+
+    If the authenticator already exists, use the cached
+    Authenticator
+
+    Note: Store the authenticator in class variables used by the SDK.
+
+    Returns: None
+    """
+
+    # Test where the config is located in self
+    if self.config:  # Tap Config
+        my_config = self.config
+    elif self._config:  # Stream Config
+        my_config = self._config
+
+    auth_method = my_config.get("auth_method", None)
+    self.http_auth = None
+
+    if not self._authenticator:
+        self._authenticator = select_authenticator(self)
+        if not self._authenticator:
+            # No Auth Method, use default Authenticator
+            self._authenticator = APIAuthenticatorBase(stream=self)
+    if auth_method == "oauth":
+        if not self._authenticator.is_token_valid():
+            # Obtain a new OAuth token as it has expired
+            self._authenticator = select_authenticator(self)
+    if auth_method == "aws":
+        # Set the http_auth which is used in the Request call for AWS
+        self.http_auth = self._authenticator

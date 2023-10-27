@@ -3,9 +3,8 @@
 from pathlib import Path
 from typing import Any
 
-from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
-from tap_rest_api_msdk.auth import select_authenticator
+from tap_rest_api_msdk.auth import get_authenticator
 
 SCHEMAS_DIR = Path(__file__).parent / Path("./schemas")
 
@@ -21,8 +20,8 @@ class RestApiStream(RESTStream):
     except NameError:
         _authenticator = None
     else:
-        if self.assigned_authenticator:
-            _authenticator = self.assigned_authenticator
+        if self.assigned_authenticator:  # noqa: F821
+            _authenticator = self.assigned_authenticator  # noqa: F821
 
     @property
     def url_base(self) -> Any:
@@ -56,16 +55,7 @@ class RestApiStream(RESTStream):
             A SDK Authenticator or APIAuthenticatorBase if no auth_method supplied.
 
         """
-        auth_method = self.config.get("auth_method", None)
-
-        if not self._authenticator:
-            self._authenticator = select_authenticator(self)
-            if not self._authenticator:
-                # No Auth Method, use default Authenticator
-                self._authenticator = APIAuthenticatorBase(stream=self)
-        elif auth_method == "oauth":
-            if not self._authenticator.is_token_valid():
-                # Obtain a new OAuth token as it has expired
-                self._authenticator = select_authenticator(self)
+        # Obtaining Authenticator for authorisation to extract data.
+        get_authenticator(self)
 
         return self._authenticator
