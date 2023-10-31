@@ -71,7 +71,7 @@ def flatten_json(
     flatten(obj, exception_keys=except_keys)
     # Optional store the whole row in the _sdc_raw_json field.
     if store_raw_json_message:
-        out["_sdc_raw_json"] = obj
+        out["_sdc_raw_json"] = obj  # type: ignore[assignment]
     return out
 
 

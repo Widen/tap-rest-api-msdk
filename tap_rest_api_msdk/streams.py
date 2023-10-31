@@ -4,7 +4,7 @@ import email.utils
 import json
 from datetime import datetime
 from string import Template
-from typing import Any, Callable, Dict, Generator, Iterable, Optional
+from typing import Any, Dict, Generator, Iterable, Optional, Union
 from urllib.parse import parse_qs, parse_qsl, urlparse
 
 import requests
@@ -97,6 +97,8 @@ class DynamicStream(RestApiStream):
             use_request_body_not_params: see tap.py
             backoff_type: see tap.py
             backoff_param: see tap.py
+            backoff_time_extension: see tap.py
+            store_raw_json_message: see tap.py
             authenticator: see tap.py
 
         """
@@ -226,8 +228,11 @@ class DynamicStream(RestApiStream):
 
         return headers
 
-    def backoff_wait_generator(self) -> Callable[..., Generator[int, Any, None]]:
+    def backoff_wait_generator(
+        self,
+    ) -> Generator[Union[int, float], None, None]:
         """Return a backoff generator as required to manage Rate Limited APIs.
+
         Supply a backoff_type in the config to indicate the style of backoff.
         If the backoff response is in a header, supply a backoff_param
         indicating what key contains the backoff delay.

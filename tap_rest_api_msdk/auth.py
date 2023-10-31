@@ -275,16 +275,17 @@ def select_authenticator(self) -> Any:
 
 
 def get_authenticator(self) -> Any:
-    """Retrieve the appropriate authenticator in tap and stream
+    """Retrieve the appropriate authenticator in tap and stream.
 
     If the authenticator already exists, use the cached
     Authenticator
 
     Note: Store the authenticator in class variables used by the SDK.
 
-    Returns: None
-    """
+    Returns:
+        None
 
+    """
     # Test where the config is located in self
     if self.config:  # Tap Config
         my_config = self.config

@@ -12,16 +12,10 @@ SCHEMAS_DIR = Path(__file__).parent / Path("./schemas")
 class RestApiStream(RESTStream):
     """rest-api stream class."""
 
-    # Intialise self.http_auth used by prepare_request
-    http_auth = None
-    # Cache the authenticator using a Smart Singleton pattern
-    try:
-        self.assigned_authenticator
-    except NameError:
-        _authenticator = None
-    else:
-        if self.assigned_authenticator:  # noqa: F821
-            _authenticator = self.assigned_authenticator  # noqa: F821
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.http_auth = None
+        self._authenticator = getattr(self, "assigned_authenticator", None)
 
     @property
     def url_base(self) -> Any:

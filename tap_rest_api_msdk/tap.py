@@ -571,10 +571,8 @@ class TapRestApiMsdk(Tap):
             # Obtaining Authenticator for authorisation to obtain a schema.
             get_authenticator(self)
 
-            if hasattr(self._authenticator, "auth_headers"):
-                headers.update(self._authenticator.auth_headers or {})
-            if hasattr(self._authenticator, "auth_params"):
-                params.update(self._authenticator.auth_params or {})
+            headers.update(getattr(self._authenticator, "auth_headers", {}))
+            params.update(getattr(self._authenticator, "auth_params", {}))
 
         r = requests.get(
             self.config["api_url"] + path,
