@@ -9,7 +9,7 @@ from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
 from singer_sdk.helpers.jsonpath import extract_jsonpath
-from tap_rest_api_msdk.auth import select_authenticator
+from tap_rest_api_msdk.auth import get_authenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
 
@@ -21,6 +21,10 @@ class TapRestApiMsdk(Tap):
 
     # Required for Authentication in tap.py - function APIAuthenticatorBase
     tap_name = name
+
+    # Used to cache the Authenticator to prevent over hitting the Authentication
+    # end-point for each stream.
+    _authenticator = None
 
     common_properties = th.PropertiesList(
         th.Property(
@@ -304,6 +308,46 @@ class TapRestApiMsdk(Tap):
             "require this. Defaults to `False`",
         ),
         th.Property(
+            "backoff_type",
+            th.StringType,
+            default=None,
+            required=False,
+            allowed_values=[None, "message", "header"],
+            description="The style of Backoff applied to rate limited APIs."
+            "None: Default Meltano SDK backoff_wait_generator, message: Scans "
+            "the response message for a time interval, header: retrieves the "
+            "backoff value from a header key response."
+            " Defaults to `None`",
+        ),
+        th.Property(
+            "backoff_param",
+            th.StringType,
+            default="Retry-After",
+            required=False,
+            description="The name of the key which contains a the "
+            "backoff value in the response. This is very applicable to backoff"
+            " values in headers. Defaults to `Retry-After`",
+        ),
+        th.Property(
+            "backoff_time_extension",
+            th.IntegerType,
+            default=0,
+            required=False,
+            description="A time extension (in seconds) to add to the backoff "
+            "value from the API plus jitter. Some APIs are not precise"
+            ", this adds an additional wait delay. Defaults to `0`",
+        ),
+        th.Property(
+            "store_raw_json_message",
+            th.BooleanType,
+            default=False,
+            required=False,
+            description="Adds an additional _SDC_RAW_JSON column as an "
+            "object. This will store the raw incoming message in this "
+            "column when provisioned. Useful for semi-structured records "
+            "when the schema is not well defined. Defaults to `False`",
+        ),
+        th.Property(
             "pagination_page_size",
             th.IntegerType,
             default=None,
@@ -475,6 +519,11 @@ class TapRestApiMsdk(Tap):
                     use_request_body_not_params=self.config.get(
                         "use_request_body_not_params"
                     ),
+                    backoff_type=self.config.get("backoff_type"),
+                    backoff_param=self.config.get("backoff_param"),
+                    backoff_time_extension=self.config.get("backoff_time_extension"),
+                    store_raw_json_message=self.config.get("store_raw_json_message"),
+                    authenticator=self._authenticator,
                 )
             )
 
@@ -491,9 +540,11 @@ class TapRestApiMsdk(Tap):
     ) -> Any:
         """Infer schema from the first records returned by api. Creates a Stream object.
 
-        If auth_method is set, will call select_authenticator to obtain credentials
-        to issue a request to sample some records. The select_authenticator will
-        set the self.http_auth if required by the request authenticator.
+        If auth_method is set, will call get_authenticator to obtain credentials
+        to issue a request to sample some records. The get_authenticator will:
+        - stores the authenticator in self._authenticator
+        - sets the self.http_auth if required by a given authenticator
+        - use an existing authenticator if one exists and is cached.
 
         Args:
             records_path: required - see config_jsonschema.
@@ -517,13 +568,11 @@ class TapRestApiMsdk(Tap):
         self.http_auth = None
 
         if auth_method and not auth_method == "no_auth":
-            # Initializing Authenticator for authorisation to obtain a schema.
-            # Will set the self.http_auth if required by a given authenticator
-            authenticator = select_authenticator(self)
-            if hasattr(authenticator, "auth_headers"):
-                headers.update(authenticator.auth_headers or {})
-            if hasattr(authenticator, "auth_params"):
-                params.update(authenticator.auth_params or {})
+            # Obtaining Authenticator for authorisation to obtain a schema.
+            get_authenticator(self)
+
+            headers.update(getattr(self._authenticator, "auth_headers", {}))
+            params.update(getattr(self._authenticator, "auth_params", {}))
 
         r = requests.get(
             self.config["api_url"] + path,
@@ -544,8 +593,14 @@ class TapRestApiMsdk(Tap):
                 self.logger.error("Input must be a dict object.")
                 raise ValueError("Input must be a dict object.")
 
-            flat_record = flatten_json(record, except_keys)
+            flat_record = flatten_json(
+                record, except_keys, store_raw_json_message=False
+            )
+
             builder.add_object(flat_record)
+            # Optional add _sdc_raw_json field to store the raw message
+            if self.config.get("store_raw_json_message"):
+                builder.add_object({"_sdc_raw_json": {}})
 
             if i >= inference_records:
                 break

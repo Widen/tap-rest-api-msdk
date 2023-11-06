@@ -20,6 +20,14 @@ plugins:
           kind: string
         - name: use_request_body_not_params
           kind: boolean
+        - name: backoff_type
+          kind: string
+        - name: backoff_param
+          kind: string
+        - name: backoff_time_extension
+          kind: integer
+        - name: store_raw_json_message
+          kind: boolean
         - name: pagination_page_size
           kind: integer
         - name: pagination_results_limit

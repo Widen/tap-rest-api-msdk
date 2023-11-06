@@ -4,7 +4,7 @@ import email.utils
 import json
 from datetime import datetime
 from string import Template
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Generator, Iterable, Optional, Union
 from urllib.parse import parse_qs, parse_qsl, urlparse
 
 import requests
@@ -64,6 +64,11 @@ class DynamicStream(RestApiStream):
         source_search_field: Optional[str] = None,
         source_search_query: Optional[str] = None,
         use_request_body_not_params: Optional[bool] = False,
+        backoff_type: Optional[str] = None,
+        backoff_param: Optional[str] = "Retry-After",
+        backoff_time_extension: Optional[int] = 0,
+        store_raw_json_message: Optional[bool] = False,
+        authenticator: Optional[object] = None,
     ) -> None:
         """Class initialization.
 
@@ -90,6 +95,11 @@ class DynamicStream(RestApiStream):
             source_search_field: see tap.py
             source_search_query: see tap.py
             use_request_body_not_params: see tap.py
+            backoff_type: see tap.py
+            backoff_param: see tap.py
+            backoff_time_extension: see tap.py
+            store_raw_json_message: see tap.py
+            authenticator: see tap.py
 
         """
         super().__init__(tap=tap, name=tap.name, schema=schema)
@@ -101,6 +111,8 @@ class DynamicStream(RestApiStream):
         self.path = path
         self.params = params if params else {}
         self.headers = headers
+        self.assigned_authenticator = authenticator
+        self._authenticator = authenticator
         self.primary_keys = primary_keys
         self.replication_key = replication_key
         self.except_keys = except_keys
@@ -129,6 +141,10 @@ class DynamicStream(RestApiStream):
         # processing is invoked.
 
         self.use_request_body_not_params = use_request_body_not_params
+        self.backoff_type = backoff_type
+        self.backoff_param = backoff_param
+        self.backoff_time_extension = backoff_time_extension
+        self.store_raw_json_message = store_raw_json_message
         if self.use_request_body_not_params:
             self.prepare_request_payload = get_url_params_styles.get(  # type: ignore
                 pagination_response_style, self._get_url_params_page_style
@@ -212,11 +228,51 @@ class DynamicStream(RestApiStream):
 
         return headers
 
+    def backoff_wait_generator(
+        self,
+    ) -> Generator[Union[int, float], None, None]:
+        """Return a backoff generator as required to manage Rate Limited APIs.
+
+        Supply a backoff_type in the config to indicate the style of backoff.
+        If the backoff response is in a header, supply a backoff_param
+        indicating what key contains the backoff delay.
+
+        Note: If the backoff_type is message, the message is parsed for numeric
+        values. It is assumed that the highest numeric value discovered is the
+        backoff value in seconds.
+
+        Returns:
+            Backoff Generator with value to wait based on the API Response.
+
+        """
+
+        def _backoff_from_headers(exception):
+            response_headers = exception.response.headers
+
+            return (
+                int(response_headers.get(self.backoff_param, 0))
+                + self.backoff_time_extension
+            )
+
+        def _get_wait_time_from_response(exception):
+            response_message = exception.response.json().get("message", 0)
+            res = [int(i) for i in response_message.split() if i.isdigit()]
+
+            return int(max(res)) + self.backoff_time_extension
+
+        if self.backoff_type == "message":
+            return self.backoff_runtime(value=_get_wait_time_from_response)
+        elif self.backoff_type == "header":
+            return self.backoff_runtime(value=_backoff_from_headers)
+        else:
+            # No override required. Use SDK backoff_wait_generator
+            return super().backoff_wait_generator()
+
     def get_new_paginator(self):
         """Return the requested paginator required to retrieve all data from the API.
 
         Returns:
-              Paginator Class.
+            Paginator Class.
 
         """
         self.logger.info(
@@ -521,4 +577,4 @@ class DynamicStream(RestApiStream):
               A record that has been processed.
 
         """
-        return flatten_json(row, self.except_keys)
+        return flatten_json(row, self.except_keys, self.store_raw_json_message)

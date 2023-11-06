@@ -4,7 +4,11 @@ import json
 from typing import Any, Optional
 
 
-def flatten_json(obj: dict, except_keys: Optional[list] = None) -> dict:
+def flatten_json(
+    obj: dict,
+    except_keys: Optional[list] = None,
+    store_raw_json_message: Optional[bool] = False,
+) -> dict:
     """Flattens a json object by appending the patch as a key in the returned object.
 
     Automatically converts arrays and any provided keys into json strings to prevent
@@ -14,6 +18,8 @@ def flatten_json(obj: dict, except_keys: Optional[list] = None) -> dict:
         obj: the json object to be flattened.
         except_keys: list of the keys of the nodes that should be converted to json
             strings.
+        store_raw_json_message: Additionally adds the raw JSON message to a field
+        named _sdc_raw_json. Note: The field is a JSON type of object.
 
     Returns:
         A flattened json object.
@@ -63,6 +69,9 @@ def flatten_json(obj: dict, except_keys: Optional[list] = None) -> dict:
             out[t(name[:-1])] = o
 
     flatten(obj, exception_keys=except_keys)
+    # Optional store the whole row in the _sdc_raw_json field.
+    if store_raw_json_message:
+        out["_sdc_raw_json"] = obj  # type: ignore[assignment]
     return out
 
 
