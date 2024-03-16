@@ -13,6 +13,8 @@ from tap_rest_api_msdk.auth import get_authenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
 
+import xmltodict
+
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
@@ -580,8 +582,14 @@ class TapRestApiMsdk(Tap):
             params=params,
             headers=headers,
         )
+
+        payload_type = "xml"
         if r.ok:
-            records = extract_jsonpath(records_path, input=r.json())
+            if payload_type == "xml":
+                print(xmltodict.parse(r.text))
+                records = extract_jsonpath(records_path, input=xmltodict.parse(r.text))
+            else:
+                records = extract_jsonpath(records_path, input=r.json())
         else:
             self.logger.error(f"Error Connecting, message = {r.text}")
             raise ValueError(r.text)
