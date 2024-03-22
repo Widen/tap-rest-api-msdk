@@ -1,4 +1,5 @@
 """REST API pagination handling."""
+
 from typing import Any, Optional, cast
 from urllib.parse import parse_qs, urlparse
 
