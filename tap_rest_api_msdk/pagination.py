@@ -71,7 +71,7 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
 
         """
         # CJT
-        payload_type = "xml"
+        payload_type = self.config.get("payload_type", "json")
         if payload_type == "xml":
             data =xmltodict.parse(response.text)
             if self.jsonpath:
@@ -155,7 +155,7 @@ class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
             return None
 
         # CJT
-        payload_type = "xml"
+        payload_type = self.config.get("payload_type", "json")
         if payload_type == "xml":
             resp_json = xmltodict.parse(response.text)
         else:
