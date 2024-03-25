@@ -41,7 +41,7 @@ _Install and activate the Python envrionnment environment:_
 
 ```bash
 poetry install
-poetry env
+poetry shell
 ```
 
 _Run the tap using the sample config for the En Tur API:_
