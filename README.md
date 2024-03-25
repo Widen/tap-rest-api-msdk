@@ -1,4 +1,4 @@
-# tap-rest-api-msdk
+# tap-rest-api-msdk (`kantega` variant)
 ![singer_rest_api_tap](https://user-images.githubusercontent.com/84364906/220881634-c0d0145a-ab85-44e9-91b6-e8d365da25f3.png)
 
 `tap-rest-api-msdk` is a Singer tap for generic rest-apis. The novelty of this particular tap
@@ -8,6 +8,11 @@ This is particularly useful if you have a stream with a very large and complex s
 a stream that outputs records with varying schemas for each record. Can also be used for
 simpler more reliable streams.
 
+The `kantega` variant is basically the same as the primary `tap-rest-api-msdk` tap (aka the `widen` variant) with additional functionality to:
+
+- Handle XML payloads
+- To extract data from the [En Tur APIs](https://developer.entur.org/pages-real-time-api).  These APIs offer real-time data from public transportation services around Norway
+  
 There are many forms of Authentication supported by this tap. By default for legacy support, you can pass Authentication via headers. If you want to use the built in support for Authentication, this tap supports
 - Basic Authentication
 - API Key
@@ -21,7 +26,97 @@ Built with the Meltano [SDK](https://gitlab.com/meltano/sdk) for Singer Taps.
 
 Gratitude goes to [anelendata](https://github.com/anelendata/tap-rest-api) for inspiring this "SDK-ized" version of their tap.
 
+## Quick start - Extract En Tur data
+
+### By invoking the plugin directly
+
+_Clone the plugin to your local machine:_
+
+```bash
+git clone https://github.com/tsunamiCam/tap-rest-api-msdk.git
+cd tap-rest-api-msdk
+```
+
+_Install and activate the Python envrionnment environment:_
+
+```bash
+poetry install
+poetry shell
+```
+
+_Run the tap using the sample config for the En Tur API:_
+
+```bash
+tap-rest-api-msdk --config=config_sample_entur.json > data_out.json
+```
+
+An example config for En Tur:
+
+```json
+{
+    "api_url": "https://api.entur.io/realtime/v1/rest",
+    "store_raw_json_message": false,
+    "pagination_request_style": "header_link_paginator",
+    "payload_type": "xml",
+    "streams": [
+        {
+            "name": "vm",
+            "path": "/vm",
+            "records_path": "$.Siri.ServiceDelivery.VehicleMonitoringDelivery.VehicleActivity.[*]",
+            "params": {
+                "datasetId": "ATB",
+                "requestorId": "f21a9317-9e15-4212-abe1-438d1be7a6d0"            
+            }
+        }
+    ]
+}
+```
+
+### Run via Meltano
+
+_Add the following to your `meltano.yml`_
+
+```yaml
+version: 1
+default_environment: dev
+project_id: 31045931-05e8-4b07-96a2-6be2482a34be
+environments:
+- name: dev
+- name: staging
+- name: prod
+plugins:
+  extractors:
+  - name: tap-rest-api-msdk
+    variant: widen
+    pip_url: git+https://github.com/tsunamiCam/tap-rest-api-msdk@kantega-variant
+    config:
+      api_url: https://api.entur.io/realtime/v1/rest
+      store_raw_json_message: false
+      pagination_request_style: header_link_paginator
+      streams:
+      - name: vm
+        path: /vm
+        records_path: $.Siri.ServiceDelivery.VehicleMonitoringDelivery.VehicleActivity.[*]
+        params:
+          datasetId: ATB
+```
+
+> :warning: Note that this is not an official variant.  Instead we use the branch `kantega-variant` from from the fork at `https://github.com/tsunamiCam/tap-rest-api-msdk`.
+
+_Install the plugin:_
+
+```bash
+meltano install extractor tap-rest-api-msdk
+```
+
+_Invoke and save data to a file:_
+
+```bash
+meltano invoke tap-rest-api-msdk > data_out.json
+```
+
 ## Installation
+
 If using via Meltano, add the following lines to your `meltano.yml` file and run the following command:
 
 ```yaml

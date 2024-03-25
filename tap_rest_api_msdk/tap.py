@@ -13,6 +13,9 @@ from tap_rest_api_msdk.auth import get_authenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
 
+# CJT
+import xmltodict
+
 
 class TapRestApiMsdk(Tap):
     """rest-api tap class."""
@@ -385,6 +388,13 @@ class TapRestApiMsdk(Tap):
             description="The name of the param that indicates the total limit e.g. "
             "total, count. Defaults to total",
         ),
+        th.Property(
+            "payload_type",
+            th.StringType,
+            default="json",
+            required=False,
+            description="The data type of the payload received from the API. One of [json, xml]. Defaults to json"
+        ),
     )
 
     # add common properties to top-level properties
@@ -580,8 +590,17 @@ class TapRestApiMsdk(Tap):
             params=params,
             headers=headers,
         )
+
+        # CJT
+        payload_type = self.config.get("payload_type", "json")
         if r.ok:
-            records = extract_jsonpath(records_path, input=r.json())
+            if payload_type == "xml":
+                data =xmltodict.parse(r.text)
+                # with open("data.json", "w") as json_file:
+                #     json_file.write(json.dumps(data))
+                records = extract_jsonpath(records_path, input=data)
+            else:
+                records = extract_jsonpath(records_path, input=r.json())
         else:
             self.logger.error(f"Error Connecting, message = {r.text}")
             raise ValueError(r.text)
@@ -594,7 +613,7 @@ class TapRestApiMsdk(Tap):
                 raise ValueError("Input must be a dict object.")
 
             flat_record = flatten_json(
-                record, except_keys, store_raw_json_message=False
+                record, except_keys, store_raw_json_message=False,
             )
 
             builder.add_object(flat_record)

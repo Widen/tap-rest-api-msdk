@@ -24,6 +24,9 @@ from tap_rest_api_msdk.pagination import (
 )
 from tap_rest_api_msdk.utils import flatten_json, get_start_date
 
+# CJT
+import xmltodict
+
 # Remove commented section to show http_request for debugging
 # import logging
 # import http.client
@@ -564,7 +567,12 @@ class DynamicStream(RestApiStream):
               Parsed records.
 
         """
-        yield from extract_jsonpath(self.records_path, input=response.json())
+        payload_type = self.config.get("payload_type", "json")
+        if payload_type == "xml":
+            data =xmltodict.parse(response.text)
+            yield from extract_jsonpath(self.records_path, input=data)
+        else:
+            yield from extract_jsonpath(self.records_path, input=response.json())
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         """As needed, append or transform raw data to match expected structure.
