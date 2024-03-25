@@ -1,0 +1,17 @@
+{
+    "api_url": "https://api.entur.io/realtime/v1/rest",
+    "store_raw_json_message": false,
+    "pagination_request_style": "header_link_paginator",
+    "payload_type": "xml",
+    "streams": [
+        {
+            "name": "vm",
+            "path": "/vm",
+            "records_path": "$.Siri.ServiceDelivery.VehicleMonitoringDelivery.VehicleActivity.[*]",
+            "params": {
+                "datasetId": "ATB",
+                "requestorId": "f21a9317-9e15-4212-abe1-438d1be7a6d0"            
+            }
+        }
+    ]
+}

@@ -12,6 +12,8 @@ from singer_sdk.pagination import (
 )
 from tap_rest_api_msdk.utils import unnest_dict
 
+# CJT
+import xmltodict
 
 class RestAPIBasePageNumberPaginator(BasePageNumberPaginator):
     """REST API Base Page Number Paginator."""
@@ -32,10 +34,18 @@ class RestAPIBasePageNumberPaginator(BasePageNumberPaginator):
             Whether there are more pages to fetch.
 
         """
-        if self._jsonpath:
-            return next(extract_jsonpath(self._jsonpath, response.json()), None)
+        payload_type = self.config.get("payload_type", "json")
+        if payload_type == "xml":
+            data = xmltodict.parse(response.text)
+            if self._jsonpath:
+                return next(extract_jsonpath(self._jsonpath, data), None)
+            else:
+                return data.get("hasMore", None)
         else:
-            return response.json().get("hasMore", None)
+            if self._jsonpath:
+                return next(extract_jsonpath(self._jsonpath, response.json()), None)
+            else:
+                return response.json().get("hasMore", None)
 
 
 class RestAPIOffsetPaginator(BaseOffsetPaginator):
@@ -60,12 +70,24 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
             Whether there are more pages to fetch.
 
         """
-        if self.jsonpath:
-            pagination = next(extract_jsonpath(self.jsonpath, response.json()), None)
+        # CJT
+        payload_type = "xml"
+        if payload_type == "xml":
+            data =xmltodict.parse(response.text)
+            if self.jsonpath:
+                pagination = next(extract_jsonpath(self.jsonpath, data), None)
+            else:
+                pagination = data.get("pagination", None)
+            if pagination:
+                pagination = unnest_dict(pagination)
+
         else:
-            pagination = response.json().get("pagination", None)
-        if pagination:
-            pagination = unnest_dict(pagination)
+            if self.jsonpath:
+                pagination = next(extract_jsonpath(self.jsonpath, data), None)
+            else:
+                pagination = response.json().get("pagination", None)
+            if pagination:
+                pagination = unnest_dict(pagination)
 
         if pagination and all(x in pagination for x in ["offset", "limit"]):
             record_limit = pagination.get(self.pagination_total_limit_param, 0)
@@ -132,7 +154,13 @@ class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
         if not response.links.get("next", {}).get("url"):
             return None
 
-        resp_json = response.json()
+        # CJT
+        payload_type = "xml"
+        if payload_type == "xml":
+            resp_json = xmltodict.parse(response.text)
+        else:
+            resp_json = response.json()
+
         if isinstance(resp_json, list):
             results = resp_json
         else:
