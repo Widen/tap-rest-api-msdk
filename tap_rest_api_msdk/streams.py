@@ -287,7 +287,7 @@ class DynamicStream(RestApiStream):
         elif (
             self.pagination_request_style == "simple_header_paginator"
         ):  # Example Gitlab.com
-            return SimpleHeaderPaginator("X-Next-Page")
+            return SimpleHeaderPaginator(self.next_page_token_jsonpath)
         elif self.pagination_request_style == "header_link_paginator":
             return HeaderLinkPaginator()
         elif (
