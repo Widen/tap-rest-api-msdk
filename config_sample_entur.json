@@ -1,6 +1,6 @@
 {
     "api_url": "https://api.entur.io/realtime/v1/rest",
-    "store_raw_json_message": false,
+    "store_raw_json_message": true,
     "pagination_request_style": "header_link_paginator",
     "payload_type": "xml",
     "streams": [
@@ -11,6 +11,14 @@
             "params": {
                 "datasetId": "ATB",
                 "requestorId": "f21a9317-9e15-4212-abe1-438d1be7a6d0"            
+            },
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "_sdc_raw_json": {
+                        "type": "object"
+                    }
+                }
             }
         }
     ]
