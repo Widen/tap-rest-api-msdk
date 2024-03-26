@@ -1,9 +1,3 @@
-## Forked to support simple header pagination for Bluessnap api - changed streams.py get_new_paginator to:
-          elif (
-            self.pagination_request_style == "simple_header_paginator"
-        ):  # Example Gitlab.com
-            return SimpleHeaderPaginator(self.next_page_token_jsonpath)
-
 # tap-rest-api-msdk
 ![singer_rest_api_tap](https://user-images.githubusercontent.com/84364906/220881634-c0d0145a-ab85-44e9-91b6-e8d365da25f3.png)
 
