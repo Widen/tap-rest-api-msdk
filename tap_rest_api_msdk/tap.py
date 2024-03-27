@@ -385,6 +385,13 @@ class TapRestApiMsdk(Tap):
             description="The name of the param that indicates the total limit e.g. "
             "total, count. Defaults to total",
         ),
+        th.Property(
+            "pagination_initial_offset",
+            th.IntegerType,
+            default=1,
+            required=False,
+            description="The initial offset to start pagination from. Defaults to 1",
+        ),
     )
 
     # add common properties to top-level properties
@@ -511,6 +518,10 @@ class TapRestApiMsdk(Tap):
                     ),
                     pagination_total_limit_param=self.config.get(
                         "pagination_total_limit_param"
+                    ),
+                    pagination_initial_offset=self.config.get(
+                        "pagination_initial_offset",
+                        1,
                     ),
                     schema=schema,
                     start_date=start_date,

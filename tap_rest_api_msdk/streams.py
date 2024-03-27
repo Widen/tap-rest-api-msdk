@@ -60,6 +60,7 @@ class DynamicStream(RestApiStream):
         pagination_next_page_param: Optional[str] = None,
         pagination_limit_per_page_param: Optional[str] = None,
         pagination_total_limit_param: Optional[str] = None,
+        pagination_initial_offset: int = 1,
         start_date: Optional[datetime] = None,
         source_search_field: Optional[str] = None,
         source_search_query: Optional[str] = None,
@@ -91,6 +92,7 @@ class DynamicStream(RestApiStream):
             pagination_next_page_param: see tap.py
             pagination_limit_per_page_param: see tap.py
             pagination_total_limit_param: see tap.py
+            pagination_initial_offset: see tap.py
             start_date: see tap.py
             source_search_field: see tap.py
             source_search_query: see tap.py
@@ -163,6 +165,7 @@ class DynamicStream(RestApiStream):
         self.source_search_field = source_search_field
         self.source_search_query = source_search_query
         self.pagination_page_size: Optional[int]
+        self.pagination_initial_offset = pagination_initial_offset
 
         # Setting Pagination Limits
         if self.pagination_request_style == "restapi_header_link_paginator":
@@ -306,7 +309,7 @@ class DynamicStream(RestApiStream):
             or self.pagination_request_style == "offset_paginator"
         ):
             return RestAPIOffsetPaginator(
-                start_value=1,
+                start_value=self.pagination_initial_offset,
                 page_size=self.pagination_page_size,
                 jsonpath=self.next_page_token_jsonpath,
                 pagination_total_limit_param=self.pagination_total_limit_param,

@@ -64,6 +64,8 @@ plugins:
           kind: string
         - name: pagination_total_limit_param
           kind: string
+        - name: pagination_initial_offset
+          kind: integer
         - name: streams
           kind: array
         - name: name
@@ -155,6 +157,7 @@ provided at the top-level will be the default values for each stream.:
 - `pagination_next_page_param`: optional: The name of the param that indicates the page/offset. Defaults to None.
 - `pagination_limit_per_page_param`: optional: The name of the param that indicates the limit/per_page. Defaults to None.
 - `pagination_total_limit_param`: optional: The name of the param that indicates the total limit e.g. total, count. Defaults to total
+- `pagination_initial_offset`: optional: The initial offset for the first request. Defaults to 1.
 - `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `'$.next_page'` for the `jsonpath_paginator` paginator only otherwise None.
 - `streams`: required: a list of objects that contain the configuration of each stream. See stream-level params below.
 - `path`: optional: see stream-level params below.
@@ -309,6 +312,7 @@ There are additional request styles supported as follows for pagination.
   - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `limit`.
   - `pagination_total_limit_param` - The name of the param that indicates the total limit e.g. total, count. Defaults to total
   - `next_page_token_path` - Used to locate an appropriate link in the response. Default None - but looks in the `pagination` section of the JSON response by default. Example, jsonpath to get the offset from the NOAA API `'$.metadata.resultset'`.
+  - `pagination_initial_offset` - The initial offset for the first request. Defaults to 1.
 - `simple_header_paginator` - This style uses links in the Header Response to locate the next page. Example the `x-next-page` link used by the Gitlab API.
 - `header_link_paginator` - This style uses the default header link paginator from the Meltano SDK.
 - `restapi_header_link_paginator` - This style is a variant on the header_link_paginator. It supports the ability to read from GitHub API.
