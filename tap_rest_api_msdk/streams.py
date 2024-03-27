@@ -119,6 +119,7 @@ class DynamicStream(RestApiStream):
         self.replication_key = replication_key
         self.except_keys = except_keys
         self.records_path = records_path
+
         if next_page_token_path:
             self.next_page_token_jsonpath = next_page_token_path
         elif (
