@@ -15,7 +15,7 @@ There are many forms of Authentication supported by this tap. By default for leg
 - OAuth
 - AWS
 
-Please note that OAuthJWTAuthentication has not been developed. If you are interested in contributing this, please fork and make a pull request. 
+Please note that OAuthJWTAuthentication has not been developed. If you are interested in contributing this, please fork and make a pull request.
 
 Built with the Meltano [SDK](https://gitlab.com/meltano/sdk) for Singer Taps.
 
@@ -140,8 +140,8 @@ tap is available by running:
 tap-rest-api-msdk --about
 ```
 
-#### Top-level config options. 
-Parameters that appear at the stream-level will overwrite their top-level 
+#### Top-level config options.
+Parameters that appear at the stream-level will overwrite their top-level
 counterparts except where noted in the stream-level params. Otherwise, the values
 provided at the top-level will be the default values for each stream.:
 - `api_url`: required: the base url/endpoint for the desired api.
@@ -187,16 +187,16 @@ provided at the top-level will be the default values for each stream.:
 - `oauth_expiration_secs`: optional: see authentication params below.
 - `aws_credentials`: optional: see authentication params below.
 
-#### Stream level config options. 
+#### Stream level config options.
 Parameters that appear at the stream-level
 will overwrite their top-level counterparts except where noted below:
 - `name`: required: name of the stream.
 - `path`: optional: the path appended to the `api_url`.
 - `params`: optional: an object of objects that provide the `params` in a `requests.get` method.
-  Stream level params will be merged with top-level params with stream level params overwriting 
+  Stream level params will be merged with top-level params with stream level params overwriting
   top-level params with the same key.
 - `headers`: optional: an object of headers to pass into the api calls. Stream level
-  headers will be merged with top-level params with stream level params overwriting 
+  headers will be merged with top-level params with stream level params overwriting
   top-level params with the same key
 - `records_path`: optional: a jsonpath string representing the path in the requests response that contains the records to process. Defaults to `$[*]`.
 - `primary_keys`: required: a list of the json keys of the primary key for the stream.
@@ -207,20 +207,20 @@ will overwrite their top-level counterparts except where noted below:
   records are not duplicated for each item in lists.
 - `num_inference_keys`: optional: number of records used to infer the stream's schema. Defaults to 50.
 - `schema`: optional: A valid Singer schema or a path-like string that provides
-  the path to a `.json` file that contains a valid Singer schema. If provided, 
+  the path to a `.json` file that contains a valid Singer schema. If provided,
   the schema will not be inferred from the results of an api call.
 - `start_date`: optional: used by the the **offset**, **page**, and **hateoas_body** response styles. This is an initial starting date for an incremental replication if there is no
   existing state provided for an incremental replication. Example format 2022-06-10:23:10:10+1200.
 - `source_search_field`: optional: used by the **offset**, **page**, and **hateoas_body** response style. This is a search/query parameter used by the API for an incremental replication.
 
-  The difference between the `replication_key` and the `source_search_field` is the search field used in request parameters whereas the replication_key is the name of the field in the API reponse. Example if the source_search_field = **last-updated** the generated schema from the api discovery 
+  The difference between the `replication_key` and the `source_search_field` is the search field used in request parameters whereas the replication_key is the name of the field in the API reponse. Example if the source_search_field = **last-updated** the generated schema from the api discovery
   might be **meta_lastUpdated**. The replication_key is set to meta_lastUpdated, and the search_parameter to last-updated. Note: Please set the `replication_key`, `start_date`, `source_search_field`, and `source_search_query` parameters all together.
 - `source_search_query`: optional: used by the **offset**, **page**, and **hateoas_body** response style. This is a query template to be issued against the API. A simple query template example for FHIR API's is **gt$last_run_date**.
 
   A more complex example against an Opensearch API, **{\\"bool\\": {\\"filter\\": [{\\"range\\": { \\"meta.lastUpdated\\": { \\"gt\\": \\"$last_run_date\\" }}}] }}**. Note: Any required double quotes in the query template must be escaped.
 
   At run-time, the tap will dynamically change the value **$last_run_date** with either the defined `start_date` parameter or the last bookmark / state value.
-  Example: source_search_field=**last-updated**, the 
+  Example: source_search_field=**last-updated**, the
   source_search_query = **gt$last_run_date**, and the current replication state = 2022-08-10:23:10:10+1200. At run time this creates a request parameter **last-updated=gt2022-06-10:23:10:10+1200**.
 
 #### Top-Level Authentication config options.
@@ -293,7 +293,7 @@ Example:
 - headers = '{"x-api-key": "my_secret_api_key", "Request-Context": "my_example_Base64_encoded_json_object"}'
 
 ## Pagination
-API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented. Where possible, this tap utilises the Meltano SDK paginators https://sdk.meltano.com/en/latest/reference.html#pagination . 
+API Pagination is a complex topic as there is no real single standard, and many different implementations.  Unless options are provided, both the request and results style type default to the `default`, which is the pagination style originally implemented. Where possible, this tap utilises the Meltano SDK paginators https://sdk.meltano.com/en/latest/reference.html#pagination .
 
 ### Default Request Style
 The default request style for pagination is using a `JSONPath Paginator` to locate the next page token.
@@ -325,6 +325,8 @@ There are additional request styles supported as follows for pagination.
 - `single_page_paginator` - A paginator that does works with single-page endpoints.
 - `page_number_paginator` - Paginator class for APIs that use page number. Looks at the response link to determine more pages.
   - `next_page_token_path` - Use to locate an appropriate link in the response. Default `"hasMore"`.
+- `simple_offset_paginator` - A paginator that uses `offset` and `limit` parameters to page through a collection of resources. Unlike `offset_paginator`, this paginator does not rely on any headers to determine whether it should keep paginating. Instead, it will continue paginating (by sending requests with increasing `offset`) until the API returns 0 results. You can use this paginator if the API returns a JSON array of records rather than a top-level object.
+  - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
 
 ### Additional Response Styles
 There are additional response styles supported as follows.
@@ -345,9 +347,9 @@ There are additional response styles supported as follows.
   - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
   - `pagination_limit_per_page_param` - the name of the API parameter to limit number of records per page. Default parameter name `per_page`.
   - `pagination_results_limit` - Restricts the total number of records returned from the API. Default None i.e. no limit.
-- `hateoas_body` - This style requires a well crafted `next_page_token_path` configuration 
+- `hateoas_body` - This style requires a well crafted `next_page_token_path` configuration
   parameter to retrieve the request parameters from the GET request response for a subsequent request.
-  
+
 ### JSON Path for extracting tokens
   The `next_page_token_path` and `records_path` use JSONPath to locate sections within the request reponse.
 
@@ -359,7 +361,7 @@ There are additional response styles supported as follows.
   The following example demonstrates the power of JSONPath extensions by further splitting the URL and extracting just the parameters. Note: This is not required for FHIR API's but is provided for illustration of added functionality for complex use cases.
     ```json
     "next_page_token_path": "$.link[?(@.relation=='next')].url.`split(?, 1, 1)`"
-    ```       
+    ```
   The [JSONPath Evaluator](https://jsonpath.com/) website is useful to test the correct json path expression to use.
 
   Example json response from a FHIR API.

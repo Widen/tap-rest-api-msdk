@@ -77,6 +77,32 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
         return False
 
 
+class SimpleOffsetPaginator(BaseOffsetPaginator):
+    """Simple Offset Paginator."""
+
+    def __init__(
+        self,
+        *args,
+        pagination_page_size: int = 25,
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self._pagination_page_size = pagination_page_size
+
+    def has_more(self, response: requests.Response):
+        """Return True if there are more pages to fetch.
+
+        Args:
+            response: The most recent response object.
+
+        Returns:
+            Whether there are more pages to fetch.
+
+        """
+        return len(response.json()) == self._pagination_page_size
+
+
+
 class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
     """REST API Header Link Paginator."""
 

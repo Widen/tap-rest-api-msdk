@@ -21,6 +21,7 @@ from tap_rest_api_msdk.pagination import (
     RestAPIBasePageNumberPaginator,
     RestAPIHeaderLinkPaginator,
     RestAPIOffsetPaginator,
+    SimpleOffsetPaginator
 )
 from tap_rest_api_msdk.utils import flatten_json, get_start_date
 
@@ -322,6 +323,11 @@ class DynamicStream(RestApiStream):
         elif self.pagination_request_style == "page_number_paginator":
             return RestAPIBasePageNumberPaginator(
                 jsonpath=self.next_page_token_jsonpath
+            )
+        elif self.pagination_request_style == "simple_offset_paginator":
+            return SimpleOffsetPaginator(
+                start_value=self.pagination_initial_offset,
+                pagination_page_size=self.pagination_page_size
             )
         else:
             self.logger.error(
