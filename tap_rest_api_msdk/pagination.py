@@ -80,12 +80,7 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
 class SimpleOffsetPaginator(BaseOffsetPaginator):
     """Simple Offset Paginator."""
 
-    def __init__(
-        self,
-        *args,
-        pagination_page_size: int = 25,
-        **kwargs
-    ):
+    def __init__(self, *args, pagination_page_size: int = 25, **kwargs):
         super().__init__(*args, **kwargs)
         self._pagination_page_size = pagination_page_size
 
@@ -100,7 +95,6 @@ class SimpleOffsetPaginator(BaseOffsetPaginator):
 
         """
         return len(response.json()) == self._pagination_page_size
-
 
 
 class RestAPIHeaderLinkPaginator(HeaderLinkPaginator):
