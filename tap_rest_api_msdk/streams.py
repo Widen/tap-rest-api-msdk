@@ -327,7 +327,7 @@ class DynamicStream(RestApiStream):
         elif self.pagination_request_style == "simple_offset_paginator":
             return SimpleOffsetPaginator(
                 start_value=self.pagination_initial_offset,
-                pagination_page_size=self.pagination_page_size,
+                page_size=self.pagination_page_size,
             )
         else:
             self.logger.error(
