@@ -8,6 +8,7 @@ from typing import Any, Dict, Generator, Iterable, Optional, Union
 from urllib.parse import parse_qs, parse_qsl, urlparse
 
 import requests
+from singer_sdk.helpers import types
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.pagination import (
     BaseHATEOASPaginator,
@@ -579,7 +580,11 @@ class DynamicStream(RestApiStream):
         """
         yield from extract_jsonpath(self.records_path, input=response.json())
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(  # noqa: PLR6301
+        self,
+        row: types.Record,
+        context: Optional[types.Context] = None,  # noqa: ARG002
+    ) -> Optional[dict]:
         """As needed, append or transform raw data to match expected structure.
 
         Args:
