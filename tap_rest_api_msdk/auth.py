@@ -116,9 +116,9 @@ class AWSConnectClient:
 
 class ConfigurableOAuthAuthenticator(OAuthAuthenticator):
     """Configurable OAuth Authenticator."""
-    
+
     def get_initial_oauth_token(self):
-        """Gets a oauth token for the tap schema discovery.
+        """Get oauth token for the tap schema discovery.
 
         Requests an oauth token and sets the auth headers.
         """

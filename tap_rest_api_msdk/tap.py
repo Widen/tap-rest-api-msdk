@@ -2,14 +2,15 @@
 
 import copy
 import json
-from typing import Any, List
+from typing import Any, List, Optional
 
 import requests
 from genson import SchemaBuilder
 from singer_sdk import Tap
 from singer_sdk import typing as th
+from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.helpers.jsonpath import extract_jsonpath
-from tap_rest_api_msdk.auth import get_authenticator
+from tap_rest_api_msdk.auth import ConfigurableOAuthAuthenticator, get_authenticator
 from tap_rest_api_msdk.streams import DynamicStream
 from tap_rest_api_msdk.utils import flatten_json
 
@@ -24,7 +25,7 @@ class TapRestApiMsdk(Tap):
 
     # Used to cache the Authenticator to prevent over hitting the Authentication
     # end-point for each stream.
-    _authenticator = None
+    _authenticator: Optional[APIAuthenticatorBase] = None
 
     common_properties = th.PropertiesList(
         th.Property(
@@ -583,7 +584,9 @@ class TapRestApiMsdk(Tap):
             get_authenticator(self)
 
             # Get an initial oauth token if an oauth method
-            if auth_method == 'oauth':
+            if auth_method == "oauth" and isinstance(
+                self._authenticator, ConfigurableOAuthAuthenticator
+            ):
                 self._authenticator.get_initial_oauth_token()
 
             headers.update(getattr(self._authenticator, "auth_headers", {}))
