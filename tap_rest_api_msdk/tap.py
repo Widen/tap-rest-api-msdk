@@ -582,6 +582,10 @@ class TapRestApiMsdk(Tap):
             # Obtaining Authenticator for authorisation to obtain a schema.
             get_authenticator(self)
 
+            # Get an initial oauth token if an oauth method
+            if auth_method == 'oauth':
+                self._authenticator.get_initial_oauth_token()
+
             headers.update(getattr(self._authenticator, "auth_headers", {}))
             params.update(getattr(self._authenticator, "auth_params", {}))
 
