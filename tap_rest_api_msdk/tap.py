@@ -393,6 +393,14 @@ class TapRestApiMsdk(Tap):
             required=False,
             description="The initial offset to start pagination from. Defaults to 1",
         ),
+        th.Property(
+            "offset_records_jsonpath",
+            th.StringType,
+            default=None,
+            required=False,
+            description="Optional jsonpath string representing the path in the results "
+            "Defaults to `None`.",
+        ),
     )
 
     # add common properties to top-level properties
@@ -463,6 +471,10 @@ class TapRestApiMsdk(Tap):
             source_search_query = stream.get(
                 "source_search_query", self.config.get("source_search_query", "")
             )
+            offset_records_jsonpath = stream.get(
+                "offset_records_jsonpath",
+                self.config.get("offset_records_jsonpath", None),
+            )
 
             schema = {}
             schema_config = stream.get("schema")
@@ -524,6 +536,7 @@ class TapRestApiMsdk(Tap):
                         "pagination_initial_offset",
                         1,
                     ),
+                    offset_records_jsonpath=offset_records_jsonpath,
                     schema=schema,
                     start_date=start_date,
                     source_search_field=source_search_field,

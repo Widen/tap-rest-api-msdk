@@ -63,6 +63,7 @@ class DynamicStream(RestApiStream):
         pagination_limit_per_page_param: Optional[str] = None,
         pagination_total_limit_param: Optional[str] = None,
         pagination_initial_offset: int = 1,
+        offset_records_jsonpath: Optional[str] = None,
         start_date: Optional[datetime] = None,
         source_search_field: Optional[str] = None,
         source_search_query: Optional[str] = None,
@@ -169,6 +170,7 @@ class DynamicStream(RestApiStream):
         self.source_search_query = source_search_query
         self.pagination_page_size: Optional[int]
         self.pagination_initial_offset = pagination_initial_offset
+        self.offset_records_jsonpath = offset_records_jsonpath
 
         # Setting Pagination Limits
         if self.pagination_request_style == "restapi_header_link_paginator":
@@ -329,6 +331,8 @@ class DynamicStream(RestApiStream):
             return SimpleOffsetPaginator(
                 start_value=self.pagination_initial_offset,
                 page_size=self.pagination_page_size,
+                offset_records_jsonpath=self.offset_records_jsonpath,
+                pagination_page_size=self.pagination_page_size,
             )
         else:
             self.logger.error(
