@@ -66,6 +66,8 @@ plugins:
           kind: string
         - name: pagination_initial_offset
           kind: integer
+        - name: offset_records_jsonpath
+          kind: string
         - name: streams
           kind: array
         - name: name
@@ -158,6 +160,7 @@ provided at the top-level will be the default values for each stream.:
 - `pagination_limit_per_page_param`: optional: The name of the param that indicates the limit/per_page. Defaults to None.
 - `pagination_total_limit_param`: optional: The name of the param that indicates the total limit e.g. total, count. Defaults to total
 - `pagination_initial_offset`: optional: The initial offset for the first request. Defaults to 1.
+- `offset_records_jsonpath`: optional: a jsonpath string representing the path to the records. Defaults to `None`.
 - `next_page_token_path`: optional: a jsonpath string representing the path to the "next page" token. Defaults to `'$.next_page'` for the `jsonpath_paginator` paginator only otherwise None.
 - `streams`: required: a list of objects that contain the configuration of each stream. See stream-level params below.
 - `path`: optional: see stream-level params below.
@@ -186,6 +189,7 @@ provided at the top-level will be the default values for each stream.:
 - `oauth_extras`: optional: see authentication params below.
 - `oauth_expiration_secs`: optional: see authentication params below.
 - `aws_credentials`: optional: see authentication params below.
+- `offset_records_jsonpath`: optional: see pagination params below.
 
 #### Stream level config options.
 Parameters that appear at the stream-level
@@ -327,6 +331,22 @@ There are additional request styles supported as follows for pagination.
   - `next_page_token_path` - Use to locate an appropriate link in the response. Default `"hasMore"`.
 - `simple_offset_paginator` - A paginator that uses `offset` and `limit` parameters to page through a collection of resources. Unlike `offset_paginator`, this paginator does not rely on any headers to determine whether it should keep paginating. Instead, it will continue paginating (by sending requests with increasing `offset`) until the API returns 0 results. You can use this paginator if the API returns a JSON array of records rather than a top-level object.
   - `pagination_page_size` - Sets a limit to number of records per page / response. Default `25` records.
+  - `offset_records_jsonpath` - The JSONPath to the records in the response. Defaults to `None`. In the example below we would select the contacts array with `"offset_records_jsonpath": "$.contacts"`. Once the number of records doe not equal `pagination_page_size` the tap will stop paginating.
+    
+    ```json
+    {
+      "contacts": [
+        {
+          "id": 52,
+          "emailBlacklisted": false,
+          "smsBlacklisted": false,
+          "createdAt": "2024-09-24T01:00:00.000-00:00",
+          "modifiedAt": "2024-09-25T01:00:00.000-00:00",
+        }
+      ],
+      "count": 256
+    }
+    ```
 
 ### Additional Response Styles
 There are additional response styles supported as follows.

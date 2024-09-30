@@ -80,8 +80,15 @@ class RestAPIOffsetPaginator(BaseOffsetPaginator):
 class SimpleOffsetPaginator(BaseOffsetPaginator):
     """Simple Offset Paginator."""
 
-    def __init__(self, *args, pagination_page_size: int = 25, **kwargs):
+    def __init__(
+        self,
+        *args,
+        offset_records_jsonpath=None,
+        pagination_page_size: int = 25,
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
+        self._offset_records_jsonpath = offset_records_jsonpath
         self._pagination_page_size = pagination_page_size
 
     def has_more(self, response: requests.Response):
@@ -94,6 +101,14 @@ class SimpleOffsetPaginator(BaseOffsetPaginator):
             Whether there are more pages to fetch.
 
         """
+        if self._offset_records_jsonpath:
+            records_left = len(
+                next(
+                    extract_jsonpath(self._offset_records_jsonpath, response.json()), 0
+                )
+            )  # type: ignore
+            return records_left == self._pagination_page_size
+
         return len(response.json()) == self._pagination_page_size
 
 
