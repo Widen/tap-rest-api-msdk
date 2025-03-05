@@ -325,6 +325,7 @@ class DynamicStream(RestApiStream):
             return SinglePagePaginator()
         elif self.pagination_request_style == "page_number_paginator":
             return RestAPIBasePageNumberPaginator(
+                start_value=self.pagination_initial_offset,
                 jsonpath=self.next_page_token_jsonpath
             )
         elif self.pagination_request_style == "simple_offset_paginator":
