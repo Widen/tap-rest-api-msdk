@@ -1,8 +1,11 @@
 """Basic utility functions."""
 
 import json
-from typing import Any, Optional
+import logging
+from typing import Any, Dict, Optional
 
+# Configure logging
+logger = logging.getLogger("tap-rest-api-msdk")
 
 def flatten_json(
     obj: dict,
@@ -113,3 +116,47 @@ def get_start_date(self, context: Optional[dict]) -> Any:
         return self.get_starting_timestamp(context).strftime("%Y-%m-%dT%H:%M:%S")
     except (ValueError, AttributeError):
         return self.get_starting_replication_key_value(context)
+
+
+def get_catalog_for_stream(stream_name: str, schema_dict: Dict) -> Dict:
+    """Return a catalog entry for a stream.
+
+    Args:
+        stream_name: The name of the stream
+        schema_dict: The schema for the stream
+
+    Returns:
+        A catalog entry dictionary
+    """
+    return {
+        "tap_stream_id": stream_name,
+        "stream": stream_name,
+        "schema": schema_dict,
+        "metadata": [],
+    }
+
+
+def stream_schema_validation(schema: Dict) -> bool:
+    """Validate stream schema.
+
+    Args:
+        schema: Schema dictionary to validate
+
+    Returns:
+        True if schema is valid, False otherwise
+    """
+    try:
+        if not schema:
+            logger.error("Schema is empty or None")
+            return False
+
+        if "properties" not in schema:
+            logger.error("Schema is missing 'properties' key")
+            return False
+
+        # Additional validation can be added here if needed
+
+        return True
+    except Exception as e:
+        logger.error(f"Error validating schema: {e}")
+        return False

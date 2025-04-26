@@ -31,6 +31,3 @@ jobs:
       - name: Test and lint the code
         run: |
           poetry run tox -e py
-
-
-

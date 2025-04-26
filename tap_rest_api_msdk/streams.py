@@ -2,6 +2,7 @@
 
 import email.utils
 import json
+import logging
 from datetime import datetime
 from string import Template
 from typing import Any, Dict, Generator, Iterable, Optional, Union
@@ -26,18 +27,8 @@ from tap_rest_api_msdk.pagination import (
 )
 from tap_rest_api_msdk.utils import flatten_json, get_start_date
 
-# Remove commented section to show http_request for debugging
-# import logging
-# import http.client
-
-# http.client.HTTPConnection.debuglevel = 1
-
-# logging.basicConfig()
-# logging.getLogger().setLevel(logging.DEBUG)
-# requests_log = logging.getLogger("requests.packages.urllib3")
-# requests_log.setLevel(logging.DEBUG)
-# requests_log.propagate = True
-
+# Configure logger for the module
+logger = logging.getLogger("tap-rest-api-msdk.streams")
 
 class DynamicStream(RestApiStream):
     """Define custom stream."""
@@ -107,12 +98,13 @@ class DynamicStream(RestApiStream):
             authenticator: see tap.py
 
         """
-        super().__init__(tap=tap, name=tap.name, schema=schema)
+        # Call super with the stream name, not tap's name
+        super().__init__(tap=tap, name=name, schema=schema)
 
         if primary_keys is None:
             primary_keys = []
 
-        self.name = name
+        # Set properties after super() is called
         self.path = path
         self.params = params if params else {}
         self.headers = headers
@@ -582,6 +574,19 @@ class DynamicStream(RestApiStream):
               Parsed records.
 
         """
+        # Log response details for debugging
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response headers: {dict(response.headers)}")
+
+        # Try to log a sample of JSON response for debugging
+        try:
+            json_data = response.json()
+            sample = str(json_data)[:500] + "..." if len(str(json_data)) > 500 else str(json_data)
+            logger.info(f"Response sample: {sample}")
+        except Exception as e:
+            logger.warning(f"Could not parse response as JSON: {e}")
+
+        # Extract records using the specified jsonpath
         yield from extract_jsonpath(self.records_path, input=response.json())
 
     def post_process(  # noqa: PLR6301
